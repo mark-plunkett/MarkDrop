@@ -43,31 +43,7 @@
     let printInfo fileName wav = 
         printf """
 File: %s
-ChunkID: %s
-ChunkSize: %i
-Format: %s
-SubChunk1ID: %s
-SubChunk1Size: %i
-AudioFormat: %i
-NumChannels: %i
-SampleRate: %i
-ByteRate: %i
-BlockAlign: %i
-BitsPerSample: %i
-SubChunk2ID: %s
-SubChunk2Size: %i
+%A
         """
             fileName
-            wav.ChunkID
-            wav.ChunkSize
-            wav.Format
-            wav.SubChunk1ID
-            wav.SubChunk1Size
-            wav.AudioFormat
-            wav.NumChannels
-            wav.SampleRate
-            wav.ByteRate
-            wav.BlockAlign
-            wav.BitsPerSample
-            wav.SubChunk2ID
-            wav.SubChunk2Size
+            wav
