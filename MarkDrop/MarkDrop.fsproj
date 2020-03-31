@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="Converters.fs" />
     <Compile Include="WavAudio.fs" />
+    <Compile Include="Drawille.fs" />
     <Compile Include="ConViz.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -15,10 +16,6 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Charting" Version="2.1.0" />
     <PackageReference Include="XPlot.Plotly" Version="3.0.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Drawille-Sharp\Drawille-Sharp.csproj" />
   </ItemGroup>
 
 </Project>
