@@ -48,9 +48,18 @@ let main argv =
 
     wavHeader |> WavAudio.printInfo fileName
 
+    let w = Console.WindowWidth
+    let h = Console.WindowHeight
+
     WavAudio.streamData fileName wavHeader 
-    |> displayWaveformChart 100
-    //|> ConViz.displayWaveForm
+    |> Seq.toList
+    |> ConViz.traceWaveForm w h
+    |> printfn "%s"
     
+    //ConViz.drawRect 50 50
+    //|> printfn "%s" 
+
+    // !!! need to set this for unicode in Powershell 
+    // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
        
     0
