@@ -1,40 +1,47 @@
 ﻿module ConViz
 
     open Drawille
+    open WavAudio
 
-    let traceWaveForm conWidth conHeight (samples:list<WavAudio.StereoSample>) =
+    let getChunkSize wavHeader canvas =
+        let sampleInfo = getSampleInfo wavHeader
+        if sampleInfo.NumSamples <= int canvas.Width then sampleInfo.NumSamples
+        else sampleInfo.NumSamples / int canvas.Width
+
+    let averageChannels samples =
+        [0..(Array2D.length2 samples) - 1]
+        |> List.map (fun i -> Array.average (samples.[*,i] |> Array.map (float)))
+
+    let normalize scalingFactor offset i = 
+        int (float i / float -scalingFactor) + offset
+
+    
+
+    let traceWaveformSamples canvas (samples: int[,]) =
         
-        let canvasWidth = (conWidth * 2) - 2
-        let canvasHeight = conHeight * 4
-        let scalingFactor = (pown 2 16) / (canvasHeight)
-        let offset = canvasHeight / 2
-
-        let normalize i = 
-            int (float i / float scalingFactor ) + offset
+        let scalingFactor = (pown 2 16) / canvas.Height
+        let offset = int canvas.Height / 2
 
         samples
-            |> List.map (fun s -> (s.AmpR + s.AmpL) / 2)
-            |> List.splitInto canvasWidth
-            //|> List.mapi (fun i s -> point i (List.average s |> normalize))
-            |> List.mapi (fun i s -> point i ((Util.furthestFromZero 0 s) |> normalize))
-            //|> Util.iterTrans (fun p -> printfn "%i:%i" p.X p.Y)
+            |> averageChannels
+            |> List.splitInto (min (int canvas.Width) (samples |> Array2D.length2))
+            |> List.mapi (fun i s -> pixel i (List.average s |> normalize scalingFactor offset))
+            //|> Util.iterTrans (fun p -> printfn "%A" p)
             |> List.pairwise
-            |> List.fold (fun c (p1, p2) -> drawLine p1 p2 c) (createCanvasAbsolute canvasWidth canvasHeight)
-            |> toStrings
-            |> Seq.reduce (+)
-            
+            |> List.fold (fun c (p1, p2) -> drawLine p1 p2 c) canvas
+
     let drawRect w h = 
 
-        let top = [0..w-1] |> List.map (fun i -> (i, 0))
-        let bottom = [0..w-1] |> List.map (fun i -> (i, h-1))
-        let left = [0..h-1] |> List.map (fun i -> (0, i))
-        let right = [0..h-1] |> List.map (fun i -> (w-1, i))
+        let top = [0..w-1] |> List.map (fun i -> pixel i 0)
+        let bottom = [0..w-1] |> List.map (fun i -> pixel i (h-1))
+        let left = [0..h-1] |> List.map (fun i -> pixel 0 i)
+        let right = [0..h-1] |> List.map (fun i -> pixel (w-1) i)
 
         let drawPoints points canvas =
             points 
-            |> List.fold (fun c (x, y) -> set x y c) canvas
+            |> List.fold (fun c p -> set p c) canvas
 
-        createCanvasAbsolute (w * 2) (h * 2)
+        createPixelCanvas w h
         |> drawPoints top
         |> drawPoints bottom
         |> drawPoints left

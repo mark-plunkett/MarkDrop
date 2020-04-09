@@ -1,38 +1,5 @@
-﻿// Learn more about F# at http://fsharp.org
-
-open FSharp.Charting
-
-open System
+﻿open System
 open System.Drawing
-
-let extractSamples f samples = 
-    seq {
-        for s in samples do
-            yield f s
-    }
-
-let displayWaveformChart granularity (samples:seq<WavAudio.StereoSample>) =
-    
-    let leftSamples = 
-        samples
-        |> Seq.map (fun s -> decimal s.AmpL)
-        |> Seq.chunkBySize granularity
-        |> Seq.map (fun s -> Array.average s)
-        |> Seq.toArray
-
-    let rightSamples = 
-        samples 
-        |> Seq.map (fun s -> decimal (-s.AmpR))
-        |> Seq.chunkBySize granularity
-        |> Seq.map (fun s -> Array.average s)
-        |> Seq.toArray
-        
-    Chart.Combine([
-        Chart.Line(leftSamples)
-        Chart.Line(rightSamples)])
-    |> Chart.Show
-
-
 
 [<EntryPoint>]
 let main argv =
@@ -42,7 +9,12 @@ let main argv =
     // FFT: https://en.wikipedia.org/wiki/Fast_Fourier_transform
     // Cooley–Tukey FFT: https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm
 
-    let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
+    // !!! need to set this for unicode in Powershell 
+    // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
+
+    //let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
+    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
         
     let wavHeader = WavAudio.readHeader fileName false
 
@@ -50,16 +22,28 @@ let main argv =
 
     let w = Console.WindowWidth
     let h = Console.WindowHeight
-
-    WavAudio.streamData fileName wavHeader 
-    |> Seq.toList
-    |> ConViz.traceWaveForm w h
-    |> printfn "%s"
     
-    //ConViz.drawRect 50 50
-    //|> printfn "%s" 
+    let canvasWidth = (w * 2) - 2
+    let canvasHeight = (h * 4) - 8
+    let canvas = Drawille.createPixelCanvas canvasWidth canvasHeight
+    let sampleChunkSize = ConViz.getChunkSize wavHeader canvas
+    let scalingFactor = (pown 2 wavHeader.BitsPerSample) / canvas.Height
+    let offset = int canvas.Height / 2
 
-    // !!! need to set this for unicode in Powershell 
-    // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
-       
+    WavAudio.processData fileName wavHeader sampleChunkSize
+        |> Seq.mapi (fun i s -> 
+            s
+            |> ConViz.averageChannels
+            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> ConViz.normalize scalingFactor offset))
+        )
+        |> Seq.collect id
+        |> Seq.pairwise
+        |> Seq.fold (fun c (p1, p2) -> Drawille.drawLine p1 p2 c) canvas
+        |> Drawille.toStrings
+        |> List.ofSeq
+        |> Seq.reduce (+)
+        |> printfn "%s"
+
+   
+
     0

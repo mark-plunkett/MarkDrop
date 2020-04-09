@@ -1,17 +1,25 @@
 ﻿
 #load "Util.fs"
+#load "Converters.fs"
+#load "WavAudio.fs"
 #load "Drawille.fs"
+#load "ConViz.fs"
 
 open Drawille
+open ConViz
+open WavAudio
 
-createCanvasAbsolute 100 100
-|> drawLine (point 5 0) (point 25 35)
-|> drawLine (point 25 35) (point 49 4)
-|> drawLine (point 0 35) (point 99 99)
-|> toStrings
-//|> Util.iterTransSeq (fun p -> printfn "%s" p)
-|> Seq.reduce (+)
-|> printfn "%s"
+//// [-100..101]
+//// |> Util.furthestFromZero 0
 
- [-100..101]
- |> Util.furthestFromZero 0
+//ConViz.drawRect 10 8
+//|> printfn "%s"
+
+
+//let tcanvas = Drawille.createPixelCanvas 200 8
+//let temps = Array2D.create 2 210 0
+
+//ConViz.traceWaveform tcanvas temps
+//    |> Drawille.toStrings
+//    |> Seq.reduce (+)
+//    |> printfn "%s"

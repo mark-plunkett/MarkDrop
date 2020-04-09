@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,10 +16,5 @@
   </ItemGroup>
 
   <ItemGroup />
-
-  <ItemGroup>
-    <PackageReference Include="FSharp.Charting" Version="2.1.0" />
-    <PackageReference Include="XPlot.Plotly" Version="3.0.1" />
-  </ItemGroup>
 
 </Project>

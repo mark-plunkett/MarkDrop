@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.29709.97
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "MarkDrop", "MarkDrop\MarkDrop.fsproj", "{20BFCC4B-4A61-4F13-B2E4-522E4EF53D70}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "MarkDrop.Tests", "MarkDrop.Tests\MarkDrop.Tests.fsproj", "{55DBFE04-D1A6-44DF-9332-A253CB408ECB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{20BFCC4B-4A61-4F13-B2E4-522E4EF53D70}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{20BFCC4B-4A61-4F13-B2E4-522E4EF53D70}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{20BFCC4B-4A61-4F13-B2E4-522E4EF53D70}.Release|Any CPU.Build.0 = Release|Any CPU
+		{55DBFE04-D1A6-44DF-9332-A253CB408ECB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55DBFE04-D1A6-44DF-9332-A253CB408ECB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55DBFE04-D1A6-44DF-9332-A253CB408ECB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55DBFE04-D1A6-44DF-9332-A253CB408ECB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
