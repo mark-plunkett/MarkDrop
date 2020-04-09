@@ -29,21 +29,12 @@ let main argv =
     let sampleChunkSize = ConViz.getChunkSize wavHeader canvas
     let scalingFactor = (pown 2 wavHeader.BitsPerSample) / canvas.Height
     let offset = int canvas.Height / 2
-
-    WavAudio.processData fileName wavHeader sampleChunkSize
-        |> Seq.mapi (fun i s -> 
-            s
-            |> ConViz.averageChannels
-            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> ConViz.normalize scalingFactor offset))
-        )
-        |> Seq.collect id
-        |> Seq.pairwise
-        |> Seq.fold (fun c (p1, p2) -> Drawille.drawLine p1 p2 c) canvas
-        |> Drawille.toStrings
-        |> List.ofSeq
-        |> Seq.reduce (+)
+    
+    let printNaieveAverage =
+        WavAudio.processData fileName wavHeader sampleChunkSize
+        |> ConViz.naieveAverage canvas scalingFactor offset
         |> printfn "%s"
-
    
+
 
     0

@@ -15,7 +15,20 @@
     let normalize scalingFactor offset i = 
         int (float i / float -scalingFactor) + offset
 
-    
+    let naieveAverage canvas scalingFactor offset seq = 
+        seq
+        |> Seq.mapi (fun i s -> 
+            printfn "%i" i
+            s
+            |> averageChannels
+            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalize scalingFactor offset))
+        )
+        |> Seq.collect id
+        |> Seq.pairwise
+        |> Seq.fold (fun c (p1, p2) -> Drawille.drawLine p1 p2 c) canvas
+        |> Drawille.toStrings
+        |> List.ofSeq
+        |> Seq.reduce (+)
 
     let traceWaveformSamples canvas (samples: int[,]) =
         
