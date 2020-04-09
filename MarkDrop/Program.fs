@@ -35,6 +35,14 @@ let main argv =
         |> ConViz.naieveAverage canvas scalingFactor offset
         |> printfn "%s"
    
+    let printDirect = 
+        WavAudio.processData fileName wavHeader sampleChunkSize
+        |> Seq.mapi (fun i s -> 
+            s
+            |> ConViz.averageChannels
+            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> ConViz.normalize scalingFactor offset))
+        )
 
+    printNaieveAverage
 
     0

@@ -10,11 +10,11 @@ let ``My test`` () =
 [<Fact>]
 let ``traceWaveform correctly renders samples`` =
     
-    let canvas = Drawille.createPixelCanvas 10 8
-    let samples = Array2D.create 2 12 0
-    let grid = 
-        ConViz.traceWaveformRaw canvas samples
-        |> Drawille.toStrings
+    //let canvas = Drawille.createPixelCanvas 10 8
+    //let samples = Array2D.create 2 12 0
+    //let grid = 
+    //    ConViz.traceWaveformRaw canvas samples
+    //    |> Drawille.toStrings
         
 
     ()

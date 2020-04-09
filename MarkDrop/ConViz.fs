@@ -15,6 +15,14 @@
     let normalize scalingFactor offset i = 
         int (float i / float -scalingFactor) + offset
 
+    let unique list =
+        list
+        |> List.fold (fun acc e ->
+            match acc with
+            | x::xs when x = e -> acc
+            | _ -> e::acc) []
+        |> List.rev
+
     let naieveAverage canvas scalingFactor offset seq = 
         seq
         |> Seq.mapi (fun i s -> 
@@ -22,6 +30,7 @@
             s
             |> averageChannels
             |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalize scalingFactor offset))
+            |> unique
         )
         |> Seq.collect id
         |> Seq.pairwise

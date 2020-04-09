@@ -11,8 +11,6 @@
 
     let brailleCharOffset = 0x2800
 
-    type BrailleChar = BrailleChar of int
-
     [<Measure>] type BrailleX
     [<Measure>] type BrailleY
 
@@ -34,8 +32,14 @@
         Y: int<PixelY>
     }
 
+    //type Canvas = {
+    //    Grid: Map<BrailleCharPosition, BrailleChar>
+    //    Width: int<PixelX>
+    //    Height: int<PixelY>
+    //}
+
     type Canvas = {
-        Grid: Map<BrailleCharPosition, BrailleChar>
+        Grid: int[,]
         Width: int<PixelX>
         Height: int<PixelY>
     }
@@ -54,34 +58,31 @@
     }
 
     let createPixelCanvas w h = {
-        Grid = Map.empty
+        Grid = Array2D.zeroCreate w h
         Width = LanguagePrimitives.Int32WithMeasure w
         Height = LanguagePrimitives.Int32WithMeasure h
     }
 
     let getMappedBrailleChar pixel =
         // Ignore the units here for the purposes of getting the mapped braille dot
-        BrailleChar dotMap.[(int pixel.Y % 4)].[(int pixel.X % 2)]
+        dotMap.[(int pixel.Y % 4)].[(int pixel.X % 2)]
 
     let brailleToString i =
-        let (BrailleChar braille) = i
-        char (brailleCharOffset + int braille) |> string
+        char (brailleCharOffset + i) |> string
 
     let bitMask brailleCharacter mask bitwiseOp =
-        let (BrailleChar brailleCharacterInt) = brailleCharacter
-        let (BrailleChar maskInt) = mask
-        BrailleChar (bitwiseOp brailleCharacterInt maskInt)
+        bitwiseOp brailleCharacter mask
 
     let modify pixel canvas bitwiseOp =
-        let dotVal = getMappedBrailleChar pixel
         let brailleCharPosition = pixelToBraillePosition pixel
-        match canvas.Grid |> Map.tryFind brailleCharPosition with
-            | None -> 
-                { canvas with Grid = canvas.Grid |> Map.add brailleCharPosition dotVal }
-            | Some braille ->
-                let masked = bitMask braille dotVal bitwiseOp
-                let grid = canvas.Grid |> Map.remove brailleCharPosition |> Map.add brailleCharPosition masked
-                { canvas with Grid = grid }
+        let existingValue = Array2D.get canvas.Grid (int brailleCharPosition.X) (int brailleCharPosition.Y)
+        let dotVal = getMappedBrailleChar pixel
+        if existingValue ||| dotVal = existingValue then
+            canvas
+        else
+            let masked = bitMask existingValue dotVal bitwiseOp
+            Array2D.set canvas.Grid (int brailleCharPosition.X) (int brailleCharPosition.Y) masked
+            canvas
 
     let set pixel canvas =
         modify pixel canvas (|||)
@@ -105,6 +106,7 @@
         int (round dec)
     
     let drawLine fromPixel toPixel canvas =
+        //printfn "drawing line from %i,%i to %i,%i" fromPixel.X fromPixel.Y toPixel.X toPixel.Y
         if toPixel = fromPixel then 
             set fromPixel canvas
         else 
@@ -124,9 +126,9 @@
         seq {
             for y in [0..int mapHeight - 1] do
                 for x in [0..int mapWidth - 1] do
-                    match canvas.Grid |> Map.tryFind (braillePosition x y) with
-                    | Some braille -> yield brailleToString braille
-                    | None -> yield " "
+                    match Array2D.get canvas.Grid x y with
+                    | 0 -> yield " "
+                    | braille -> yield brailleToString braille
 
                 yield "\n"
         }
