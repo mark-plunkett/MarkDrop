@@ -1,6 +1,7 @@
 ﻿module WavAudio
 
     open System
+    open FSharp.Collections.ParallelSeq
 
     type WavFileHeader = {
         ChunkHeaderConstBytes: int
@@ -127,7 +128,7 @@
     let readData fileName header =
         System.IO.File.ReadAllBytes(fileName).[44..44 + header.SubChunk2Size - 1]
 
-    let chunkSampleBytes (header:WavFileHeader) sampleInfo byteBuffer =
+    let bytesToSamples (header:WavFileHeader) sampleInfo byteBuffer =
         let multiChannelSamples = Array2D.zeroCreate header.NumChannels ((byteBuffer |> Array.length) / sampleInfo.BytesPerMultiChannelSample)
         let mutable index = 0
         let mutable channel = 0
@@ -146,30 +147,37 @@
 
         multiChannelSamples
 
-    let processAllData fileName numSamples =
+    let processAllData fileName samplesPerChunk =
         
         let header = readHeader fileName true
-        let sampleInfo = getSampleInfo header
-        
+        let sampleInfo = getSampleInfo header        
+        let bufferLengthBytes = min header.SubChunk2Size (samplesPerChunk * sampleInfo.BytesPerMultiChannelSample)
+
         let dataBytes = readData fileName header
-        let bufferLengthBytes = min header.SubChunk2Size (numSamples * sampleInfo.BytesPerMultiChannelSample)
-        // e.g 1000 samples * (2 bytes per sample * 2 channels) = 4000 bytes
         let mutable byteBuffer = readBytes dataBytes 0 bufferLengthBytes
         let mutable bytesRead = Array.length byteBuffer
         
-        printfn "Read bytes: %i" (Array.length byteBuffer)
-
         seq {
 
             while Array.length byteBuffer > 0 do
-                // e.g. 0 .. (4000 / 2) - 4 = 1996
                 
-                
-                yield chunkSampleBytes header sampleInfo byteBuffer
+                yield bytesToSamples header sampleInfo byteBuffer
         
                 byteBuffer <- readBytes dataBytes (bytesRead + Array.length byteBuffer) bufferLengthBytes
                 bytesRead <- bytesRead + Array.length byteBuffer
         }
+
+    let parallelProcessAllData fileName samplesPerChunk =
+
+        let header = readHeader fileName true
+        let sampleInfo = getSampleInfo header        
+        let bytesPerChunk = samplesPerChunk * sampleInfo.BytesPerMultiChannelSample
+        let dataBytes = readData fileName header
+
+        dataBytes
+        |> Array.chunkBySize bytesPerChunk
+        //|> PSeq.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
+        |> Array.Parallel.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
 
     let printInfo fileName header = 
         printfn """

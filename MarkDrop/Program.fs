@@ -26,34 +26,34 @@ let main argv =
     let canvasWidth = (w * 2) - 2
     let canvasHeight = (h * 2) - 8
     let canvas = Drawille.createPixelCanvas canvasWidth canvasHeight
-    let sampleChunkSize = ConViz.getChunkSize wavHeader canvas
+    let samplesPerChunk = ConViz.getChunkSize wavHeader canvas
     let scalingFactor = (pown 2 wavHeader.BitsPerSample) / canvas.Height
     let offset = int canvas.Height / 2
     
     let printNaieveAverage fileName =
-        WavAudio.processAllData fileName sampleChunkSize
+        WavAudio.processAllData fileName samplesPerChunk
         |> ConViz.naieveAverage canvas scalingFactor offset
         |> ConViz.updateConsole
         
     let printMinMax fileName =
-        WavAudio.processAllData fileName sampleChunkSize
+        WavAudio.processAllData fileName samplesPerChunk
         |> ConViz.minMax canvas scalingFactor offset
         |> ConViz.updateConsole
 
     let printMinMaxParallel fileName =
-        WavAudio.processAllData fileName sampleChunkSize
-        |> ConViz.minMaxParallel canvas scalingFactor offset
+        WavAudio.parallelProcessAllData fileName samplesPerChunk
+        |> ConViz.parallelMinMax canvas scalingFactor offset
         |> ConViz.updateConsole
 
     let printDirect fileName = 
-        WavAudio.processData fileName sampleChunkSize
+        WavAudio.processData fileName samplesPerChunk
         |> Seq.mapi (fun i s -> 
             s
             |> ConViz.averageChannels
             |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> ConViz.normalize scalingFactor offset))
         )
 
-    printMinMax fileName
+    printMinMaxParallel fileName
     |> ignore
 
     0

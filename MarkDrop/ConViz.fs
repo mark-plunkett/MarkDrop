@@ -27,7 +27,7 @@
         let flattenedSamples =
             [0..(Array2D.length1 samples2D) - 1]
             |> List.fold (fun flatList i -> flatList@(samples2D.[i,*] |> Array.toList)) []
-            
+
         (PSeq.min flattenedSamples, PSeq.max flattenedSamples)
 
     let normalize scalingFactor offset i = 
@@ -79,12 +79,12 @@
             |> Drawille.drawLine z p2
             ) canvas
 
-    let minMaxParallel canvas scalingFactor offset seq = 
+    let parallelMinMax canvas scalingFactor offset seq = 
         seq
-        |> PSeq.mapi (fun i s -> 
+        |> Seq.map (fun (i, samples) -> 
             //printfn "%i" i
             //printfn "min %i, max %i" min max
-            let (min, max) = minMaxValues2D s
+            let (min, max) = minMaxValues2D samples
             let pMin = pixel i (normalize scalingFactor offset (float min))
             let pMax = pixel i (normalize scalingFactor offset (float max))
             let zero = pixel i (normalize scalingFactor offset 0.0)
