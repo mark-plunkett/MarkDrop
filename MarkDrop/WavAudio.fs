@@ -129,14 +129,20 @@
 
     let chunkSampleBytes (header:WavFileHeader) sampleInfo byteBuffer =
         let multiChannelSamples = Array2D.zeroCreate header.NumChannels ((byteBuffer |> Array.length) / sampleInfo.BytesPerMultiChannelSample)
-        for index in [0..((Array.length byteBuffer / sampleInfo.BytesPerMultiChannelSample) - sampleInfo.BytesPerMultiChannelSample)] do
-            for channel in [0..header.NumChannels - 1] do
-                // e.g. 
-                // 0 x 0 x 2 = 0
+        let mutable index = 0
+        let mutable channel = 0
+        while index <= ((Array.length byteBuffer / sampleInfo.BytesPerMultiChannelSample) - sampleInfo.BytesPerMultiChannelSample) do
+            while channel < header.NumChannels do
+
                 let offset = (index * sampleInfo.BytesPerMultiChannelSample)
                 let channelOffset = offset + (channel + 1) * sampleInfo.BytesPerSample
-                let sample = byteBuffer.[channelOffset..channelOffset + sampleInfo.BytesPerSample - 1] |> Convert.to32BitInt16
-                Array2D.set multiChannelSamples channel index sample
+                //let sample = byteBuffer.[channelOffset..channelOffset + sampleInfo.BytesPerSample - 1] |> Convert.to32BitInt16
+                let sample = Array.sub byteBuffer channelOffset sampleInfo.BytesPerSample |> Convert.to32BitInt16
+                Array2D.set multiChannelSamples channel index sample     
+                channel <- channel + 1
+                
+            index <- index + 1
+            channel <- 0
 
         multiChannelSamples
 
