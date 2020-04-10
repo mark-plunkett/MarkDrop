@@ -3,6 +3,8 @@
     open Drawille
     open WavAudio
 
+    open System
+
     let getChunkSize wavHeader canvas =
         let sampleInfo = getSampleInfo wavHeader
         if sampleInfo.NumSamples <= int canvas.Width then sampleInfo.NumSamples
@@ -11,6 +13,13 @@
     let averageChannels samples =
         [0..(Array2D.length2 samples) - 1]
         |> List.map (fun i -> Array.average (samples.[*,i] |> Array.map (float)))
+
+    let minMaxValues samples =
+        let flattenedSamples =
+            [0..(Array2D.length1 samples) - 1]
+            |> List.fold (fun flatList i -> flatList@(samples.[i,*] |> Array.toList)) []
+
+        (List.min flattenedSamples, List.max flattenedSamples)
 
     let normalize scalingFactor offset i = 
         int (float i / float -scalingFactor) + offset
@@ -23,10 +32,18 @@
             | _ -> e::acc) []
         |> List.rev
 
+    let updateConsole canvas =
+        Console.SetCursorPosition(0, 0)
+        let value = 
+            canvas
+            |> Drawille.toStrings
+            |> Seq.reduce (+)
+        Console.Write(value)
+
     let naieveAverage canvas scalingFactor offset seq = 
         seq
         |> Seq.mapi (fun i s -> 
-            printfn "%i" i
+            //printfn "%i" i
             s
             |> averageChannels
             |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalize scalingFactor offset))
@@ -35,9 +52,22 @@
         |> Seq.collect id
         |> Seq.pairwise
         |> Seq.fold (fun c (p1, p2) -> Drawille.drawLine p1 p2 c) canvas
-        |> Drawille.toStrings
-        |> List.ofSeq
-        |> Seq.reduce (+)
+
+    let minMax canvas scalingFactor offset seq = 
+        seq
+        |> Seq.mapi (fun i s -> 
+            //printfn "%i" i
+            //printfn "min %i, max %i" min max
+            let (min, max) = minMaxValues s
+            let pMin = pixel i (normalize scalingFactor offset (float min))
+            let pMax = pixel i (normalize scalingFactor offset (float max))
+            let zero = pixel i (normalize scalingFactor offset 0.0)
+            (zero, pMin, pMax)
+        )
+        |> Seq.fold (fun c (z, p1, p2) -> 
+            Drawille.drawLine z p1 c
+            |> Drawille.drawLine z p2
+            ) canvas
 
     let traceWaveformSamples canvas (samples: int[,]) =
         
