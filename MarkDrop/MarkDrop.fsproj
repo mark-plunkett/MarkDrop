@@ -15,6 +15,8 @@
     <None Include="Tests.fsx" />
   </ItemGroup>
 
-  <ItemGroup />
+  <ItemGroup>
+    <PackageReference Include="FSharp.Collections.ParallelSeq" Version="1.1.2" />
+  </ItemGroup>
 
 </Project>
