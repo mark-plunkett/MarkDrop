@@ -35,7 +35,7 @@ let main argv =
     //    |> ConViz.naieveAverage canvas scalingFactor offset
         
     let printMinMax =
-        WavAudio.processData fileName wavHeader sampleChunkSize
+        WavAudio.processAllData fileName wavHeader sampleChunkSize
         |> ConViz.minMax canvas scalingFactor offset
         |> Drawille.toStrings
         |> Seq.reduce (+)

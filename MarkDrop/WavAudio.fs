@@ -121,39 +121,39 @@
 
     let readBytes bytes offset length =
         let maxLength = calculateLength bytes offset length
-        bytes.[offset..maxLength-1]
+        bytes.[offset..offset + maxLength - 1]
 
     let processAllData fileName header numSamples =
         
         let sampleInfo = getSampleInfo header
         
-        let rawBytes = System.IO.File.ReadAllBytes(fileName)
+        let dataBytes = System.IO.File.ReadAllBytes(fileName).[44..44 + header.SubChunk2Size - 1]
         // discard header bytes
-        let dataOffset = (header.ChunkSize - header.SubChunk2Size + header.SubChunk1Size - header.ChunkHeaderConstBytes)
         let bufferLengthBytes = min header.SubChunk2Size (numSamples * sampleInfo.BytesPerMultiChannelSample)
         // e.g 1000 samples * (2 bytes per sample * 2 channels) = 4000 bytes
-        let mutable bytesRead = readBytes rawBytes 0 bufferLengthBytes
+        let mutable byteBuffer = readBytes dataBytes 0 bufferLengthBytes
+        let mutable bytesRead = Array.length byteBuffer
         let multiChannelSamples = Array2D.zeroCreate header.NumChannels (bufferLengthBytes / sampleInfo.BytesPerMultiChannelSample)
         
-        printfn "Read bytes: %i" (Array.length bytesRead)
+        printfn "Read bytes: %i" (Array.length byteBuffer)
 
         seq {
 
-            while Array.length bytesRead > 0 do
+            while Array.length byteBuffer > 0 do
                 // e.g. 0 .. (4000 / 2) - 4 = 1996
-                for index in [0..((Array.length bytesRead / sampleInfo.BytesPerMultiChannelSample) - sampleInfo.BytesPerMultiChannelSample)] do
+                for index in [0..((Array.length byteBuffer / sampleInfo.BytesPerMultiChannelSample) - sampleInfo.BytesPerMultiChannelSample)] do
                     for channel in [0..header.NumChannels - 1] do
                         // e.g. 
                         // 0 x 0 x 2 = 0
                         let offset = (index * sampleInfo.BytesPerMultiChannelSample)
                         let channelOffset = offset + (channel + 1) * sampleInfo.BytesPerSample
-                        let sample = bytesRead.[channelOffset..channelOffset + sampleInfo.BytesPerSample - 1] |> Convert.to32BitInt16
+                        let sample = byteBuffer.[channelOffset..channelOffset + sampleInfo.BytesPerSample - 1] |> Convert.to32BitInt16
                         Array2D.set multiChannelSamples channel index sample
-        
-                //Array2D.fold processor initial multiChannelSamples
+                
                 yield multiChannelSamples
         
-                bytesRead <- readBytes rawBytes (Array.length bytesRead) bufferLengthBytes
+                byteBuffer <- readBytes dataBytes (bytesRead + Array.length byteBuffer) bufferLengthBytes
+                bytesRead <- bytesRead + Array.length byteBuffer
         }
 
     let printInfo fileName header = 
