@@ -14,12 +14,20 @@
         [0..(Array2D.length2 samples) - 1]
         |> List.map (fun i -> Array.average (samples.[*,i] |> Array.map (float)))
 
-    let minMaxValues samples =
-        let flattenedSamples =
-            [0..(Array2D.length1 samples) - 1]
-            |> List.fold (fun flatList i -> flatList@(samples.[i,*] |> Array.toList)) []
+    let rec minMaxValues samples min max =
+        match samples with
+        | [] -> (min, max)
+        | s::ss -> 
+            if s > max then minMaxValues ss min s
+            else if s < min then minMaxValues ss s max
+            else minMaxValues ss min max
 
-        (List.min flattenedSamples, List.max flattenedSamples)
+    let minMaxValues2D samples2D =
+        let flattenedSamples =
+            [0..(Array2D.length1 samples2D) - 1]
+            |> List.fold (fun flatList i -> flatList@(samples2D.[i,*] |> Array.toList)) []
+
+        minMaxValues flattenedSamples 0 0
 
     let normalize scalingFactor offset i = 
         int (float i / float -scalingFactor) + offset
@@ -58,13 +66,14 @@
         |> Seq.mapi (fun i s -> 
             //printfn "%i" i
             //printfn "min %i, max %i" min max
-            let (min, max) = minMaxValues s
+            let (min, max) = minMaxValues2D s
             let pMin = pixel i (normalize scalingFactor offset (float min))
             let pMax = pixel i (normalize scalingFactor offset (float max))
             let zero = pixel i (normalize scalingFactor offset 0.0)
             (zero, pMin, pMax)
         )
         |> Seq.fold (fun c (z, p1, p2) -> 
+            updateConsole c
             Drawille.drawLine z p1 c
             |> Drawille.drawLine z p2
             ) canvas
