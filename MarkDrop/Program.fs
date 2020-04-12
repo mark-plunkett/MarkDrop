@@ -17,17 +17,19 @@ let main argv =
     let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
         
     let wavHeader = WavAudio.readHeader fileName false
-
     wavHeader |> WavAudio.printInfo fileName
 
     Console.OutputEncoding <- Text.Encoding.UTF8
+    Console.CursorVisible <- false
+    let originalCursorTop = Console.CursorTop
     let w = Console.WindowWidth
     let h = Console.WindowHeight
-    Console.CursorVisible <- false
+    let cursorEndY = originalCursorTop + (h / 2)
     
     let canvasWidth = (w * 2) - 2
     let canvasHeight = (h * 2) - 8
-    let canvas = Drawille.createPixelCanvas canvasWidth canvasHeight
+    let yPixelOffset = originalCursorTop * 4
+    let canvas = Drawille.createOffsetPixelCanvas canvasWidth canvasHeight 0 yPixelOffset
     let samplesPerChunk = ConViz.getChunkSize wavHeader canvas
     let scalingFactor = (pown 2 wavHeader.BitsPerSample) / canvas.Height
     let offset = int canvas.Height / 2
@@ -57,4 +59,5 @@ let main argv =
     printMinMaxParallel fileName
     |> ignore
 
+    Console.CursorTop <- cursorEndY
     0

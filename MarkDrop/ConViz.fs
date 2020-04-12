@@ -49,15 +49,17 @@
             |> Seq.reduce (+)
         Console.Write(value)
        
-    let updateConsolePos x y (value: string) =
-        Console.SetCursorPosition(x, y)
+    let updateConsolePos charX charY (value: string) =
+        Console.SetCursorPosition(charX, charY)
         Console.Write(value)
 
     let updateConsoleDiff prevCanvas nextCanvasFactory = 
         let prevGrid = Array2D.copy prevCanvas.Grid
         let nextCanvas = nextCanvasFactory prevCanvas
-        Drawille.enumerate2 prevGrid nextCanvas.Grid (fun (x, y) v1 v2 -> 
-            if v1 <> v2 then updateConsolePos x y (Drawille.brailleToString v2)
+        let xOffset = int (prevCanvas.OriginX / pixelsPerBrailleX)
+        let yOffset = int (prevCanvas.OriginY / pixelsPerBrailleY)
+        Drawille.enumerate2 prevGrid nextCanvas.Grid (fun (charX, charY) v1 v2 -> 
+            if v1 <> v2 then updateConsolePos (charX + xOffset) (charY + yOffset) (Drawille.brailleToString v2)
         )
 
         nextCanvas
@@ -92,21 +94,16 @@
             |> Drawille.drawLine z p2
             ) canvas
 
-    let pointFolder c (z, p1, p2) =
-        updateConsoleDiff c (fun nextCanvas ->
-            Drawille.drawLine z p1 nextCanvas
-            |> Drawille.drawLine z p2)
+    let pointFolder c (p1, p2) =
+        updateConsoleDiff c (fun nextCanvas -> Drawille.drawLine p1 p2 nextCanvas)
 
     let parallelMinMax canvas scalingFactor offset seq = 
         seq
         |> Seq.map (fun (i, samples) -> 
-            //printfn "%i" i
-            //printfn "min %i, max %i" min max
             let (min, max) = minMaxValues2D samples
             let pMin = pixel i (normalize scalingFactor offset (float min))
             let pMax = pixel i (normalize scalingFactor offset (float max))
-            let zero = pixel i (normalize scalingFactor offset 0.0)
-            (zero, pMin, pMax)
+            (pMin, pMax)
         )
         |> Seq.fold pointFolder canvas
 

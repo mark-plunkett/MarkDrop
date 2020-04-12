@@ -42,6 +42,8 @@
         Grid: int[,]
         Width: int<PixelX>
         Height: int<PixelY>
+        OriginX: int<PixelX>
+        OriginY: int<PixelY>
     }
 
     let pixelsPerBrailleX : int<PixelX/BrailleX> = 2<PixelX/BrailleX>
@@ -57,11 +59,16 @@
         Y = LanguagePrimitives.Int32WithMeasure y
     }
 
-    let createPixelCanvas w h = {
+    let createOffsetPixelCanvas w h x y = {
         Grid = Array2D.zeroCreate w h
         Width = LanguagePrimitives.Int32WithMeasure w
         Height = LanguagePrimitives.Int32WithMeasure h
+        OriginX = LanguagePrimitives.Int32WithMeasure x
+        OriginY = LanguagePrimitives.Int32WithMeasure y
     }
+
+    let createPixelCanvas w h = 
+        createOffsetPixelCanvas w h 0 0
 
     let getMappedBrailleChar pixel =
         // Ignore the units here for the purposes of getting the mapped braille dot
