@@ -124,7 +124,7 @@
         while x < Array2D.length1 g1 do
             let mutable y = 0
             while y < Array2D.length2 g1 do
-                f (x, y) g1.[x, y] g2.[x, y]
+                f (x, y) (Array2D.get g1 x y) (Array2D.get g2 x y)
 
                 y <- y + 1
             x <- x + 1

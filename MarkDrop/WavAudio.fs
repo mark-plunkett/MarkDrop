@@ -1,7 +1,6 @@
 ﻿module WavAudio
 
     open System
-    open FSharp.Collections.ParallelSeq
 
     type WavFileHeader = {
         ChunkHeaderConstBytes: int
@@ -179,7 +178,6 @@
         else 
             dataBytes
             |> Array.chunkBySize bytesPerChunk
-            //|> PSeq.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
             |> Array.Parallel.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
 
     let printInfo fileName header = 
