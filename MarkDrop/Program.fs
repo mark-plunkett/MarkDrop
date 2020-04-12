@@ -11,9 +11,11 @@ let main argv =
     // !!! need to set this for unicode in Powershell 
     // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
 
-    let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
-    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    // !!! 24BIT IS BROKEN
+    //let fileName = @"D:\Google Drive\Production\Samples\# Synth Drums\unprocessed drums\toms\unusual toms\wasd_tom_sys100_ceramic-2_s_u.wav"
+    let fileName = if argv.Length = 0 then  @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav" else argv.[0]
         
     let wavHeader = WavAudio.readHeader fileName false
     wavHeader |> WavAudio.printInfo fileName
