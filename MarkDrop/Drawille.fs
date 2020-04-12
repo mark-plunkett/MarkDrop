@@ -101,6 +101,27 @@
             draw tail (set head canvas)
         | [] -> canvas
 
+    let enumerate canvas f =
+        let mutable x = 0
+        let mutable y = 0
+        while y < Array2D.length1 canvas.Grid do
+            while x < Array2D.length2 canvas.Grid do
+                f (x, y) canvas.Grid.[y, x]
+
+                x <- x + 1
+
+            y <- y + 1
+
+    let enumerate2 (g1: int[,]) (g2: int[,]) f =
+        let mutable x = 0
+        while x < Array2D.length1 g1 do
+            let mutable y = 0
+            while y < Array2D.length2 g1 do
+                f (x, y) g1.[x, y] g2.[x, y]
+
+                y <- y + 1
+            x <- x + 1
+
     let multAndRound a b =
         let dec = float a * float b
         int (round dec)

@@ -20,8 +20,10 @@ let main argv =
 
     wavHeader |> WavAudio.printInfo fileName
 
+    Console.OutputEncoding <- Text.Encoding.UTF8
     let w = Console.WindowWidth
     let h = Console.WindowHeight
+    Console.CursorVisible <- false
     
     let canvasWidth = (w * 2) - 2
     let canvasHeight = (h * 2) - 8
@@ -43,7 +45,6 @@ let main argv =
     let printMinMaxParallel fileName =
         WavAudio.parallelProcessAllData fileName samplesPerChunk
         |> ConViz.parallelMinMax canvas scalingFactor offset
-        |> ConViz.updateConsole
 
     let printDirect fileName = 
         WavAudio.processData fileName samplesPerChunk

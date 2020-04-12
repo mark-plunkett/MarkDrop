@@ -48,6 +48,19 @@
             |> Drawille.toStrings
             |> Seq.reduce (+)
         Console.Write(value)
+       
+    let updateConsolePos x y (value: string) =
+        Console.SetCursorPosition(x, y)
+        Console.Write(value)
+
+    let updateConsoleDiff prevCanvas nextCanvasFactory = 
+        let prevGrid = Array2D.copy prevCanvas.Grid
+        let nextCanvas = nextCanvasFactory prevCanvas
+        Drawille.enumerate2 prevGrid nextCanvas.Grid (fun (x, y) v1 v2 -> 
+            if v1 <> v2 then updateConsolePos x y (Drawille.brailleToString v2)
+        )
+
+        nextCanvas
 
     let naieveAverage canvas scalingFactor offset seq = 
         seq
@@ -79,6 +92,11 @@
             |> Drawille.drawLine z p2
             ) canvas
 
+    let pointFolder c (z, p1, p2) =
+        updateConsoleDiff c (fun nextCanvas ->
+            Drawille.drawLine z p1 nextCanvas
+            |> Drawille.drawLine z p2)
+
     let parallelMinMax canvas scalingFactor offset seq = 
         seq
         |> Seq.map (fun (i, samples) -> 
@@ -90,11 +108,7 @@
             let zero = pixel i (normalize scalingFactor offset 0.0)
             (zero, pMin, pMax)
         )
-        |> Seq.fold (fun c (z, p1, p2) -> 
-            updateConsole c
-            Drawille.drawLine z p1 c
-            |> Drawille.drawLine z p2
-            ) canvas
+        |> Seq.fold pointFolder canvas
 
     let traceWaveformSamples canvas (samples: int[,]) =
         
