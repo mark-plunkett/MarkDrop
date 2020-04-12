@@ -6,6 +6,11 @@
     open FSharp.Collections.ParallelSeq
     open System
 
+    type Convas = {
+        ScalingFactor: int
+        ZeroOffset: int
+    }
+
     let updateConsole canvas =
         Console.SetCursorPosition(0, 0)
         let value = 
@@ -31,15 +36,16 @@
             else if s < min then minMaxValues s max ss
             else minMaxValues min max ss
 
-    let minMaxValues2D samples2D =
+    let minMaxValues2D (samples2D:int[,]) =
         let flattenedSamples =
             [0..(Array2D.length1 samples2D) - 1]
-            |> List.fold (fun flatList i -> flatList@(samples2D.[i,*] |> Array.toList)) []
+            |> PSeq.map (fun i -> samples2D.[i,*])
+            |> Array.concat
 
         (PSeq.min flattenedSamples, PSeq.max flattenedSamples)
 
-    let normalize scalingFactor offset i = 
-        int (float i / float -scalingFactor) + offset
+    let normalize convas i = 
+        int (float i / float -convas.ScalingFactor) + convas.ZeroOffset
 
     let updateConsoleDiff prevCanvas nextCanvasFactory = 
         let prevGrid = Array2D.copy prevCanvas.Grid
@@ -55,25 +61,30 @@
     let pointFolder c (p1, p2) =
         updateConsoleDiff c (fun nextCanvas -> Drawille.drawLine p1 p2 nextCanvas)
 
-    let parallelMinMax canvas scalingFactor offset seq = 
+    let minMaxToPixels convas x min max =
+        let pMin = pixel x (normalize convas (float min))
+        let pMax = pixel x (normalize convas (float max))
+        (pMin, pMax)
+
+    let minMaxPixelMapperi convas (i, samples) =
+        let (min, max) = minMaxValues2D samples
+        minMaxToPixels convas i min max
+
+    let parallelMinMax convas canvas seq = 
+        let mapper = minMaxPixelMapperi convas
         seq
-        |> Seq.map (fun (i, samples) -> 
-            let (min, max) = minMaxValues2D samples
-            let pMin = pixel i (normalize scalingFactor offset (float min))
-            let pMax = pixel i (normalize scalingFactor offset (float max))
-            (pMin, pMax)
-        )
+        |> Seq.map mapper
         |> Seq.fold pointFolder canvas
 
-    let minMax canvas scalingFactor offset seq = 
+    let minMax convas canvas seq = 
         seq
         |> Seq.mapi (fun i s -> 
             //printfn "%i" i
             //printfn "min %i, max %i" min max
             let (min, max) = minMaxValues2D s
-            let pMin = pixel i (normalize scalingFactor offset (float min))
-            let pMax = pixel i (normalize scalingFactor offset (float max))
-            let zero = pixel i (normalize scalingFactor offset 0.0)
+            let pMin = pixel i (normalize convas (float min))
+            let pMax = pixel i (normalize convas (float max))
+            let zero = pixel i (normalize convas 0.0)
             (zero, pMin, pMax)
         )
         |> Seq.fold (fun c (z, p1, p2) -> 
@@ -86,26 +97,23 @@
         [0..(Array2D.length2 samples) - 1]
         |> List.map (fun i -> Array.average (samples.[*,i] |> Array.map (float)))
 
-    let traceWaveformSamples canvas (samples: int[,]) =
+    let traceWaveformSamples convas canvas (samples: int[,]) =
         
-        let scalingFactor = (pown 2 16) / canvas.Height
-        let offset = int canvas.Height / 2
-
         samples
             |> averageChannels
             |> List.splitInto (min (int canvas.Width) (samples |> Array2D.length2))
-            |> List.mapi (fun i s -> pixel i (List.average s |> normalize scalingFactor offset))
+            |> List.mapi (fun i s -> pixel i (List.average s |> normalize convas))
             //|> Util.iterTrans (fun p -> printfn "%A" p)
             |> List.pairwise
             |> List.fold pointFolder canvas
 
-    let naieveAverage canvas scalingFactor offset seq = 
+    let naieveAverage convas canvas seq = 
         seq
         |> Seq.mapi (fun i s -> 
             //printfn "%i" i
             s
             |> averageChannels
-            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalize scalingFactor offset))
+            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalize convas))
             |> Util.unique
         )
         |> Seq.collect id

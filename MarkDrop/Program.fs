@@ -1,5 +1,4 @@
 ﻿open System
-open System.Drawing
 
 [<EntryPoint>]
 let main argv =
@@ -12,9 +11,9 @@ let main argv =
     // !!! need to set this for unicode in Powershell 
     // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
 
-    //let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
+    let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
-    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
         
     let wavHeader = WavAudio.readHeader fileName false
     wavHeader |> WavAudio.printInfo fileName
@@ -30,30 +29,37 @@ let main argv =
     let canvasHeight = (h * 2) - 8
     let yPixelOffset = originalCursorTop * 4
     let canvas = Drawille.createOffsetPixelCanvas canvasWidth canvasHeight 0 yPixelOffset
+    let convas = {
+        ConViz.Convas.ScalingFactor = (pown 2 wavHeader.BitsPerSample) / int canvas.Height
+        ConViz.Convas.ZeroOffset = int canvas.Height / 2
+    }
     let samplesPerChunk = ConViz.getChunkSize wavHeader canvas
-    let scalingFactor = (pown 2 wavHeader.BitsPerSample) / canvas.Height
-    let offset = int canvas.Height / 2
     
     let printNaieveAverage fileName =
         WavAudio.processAllData fileName samplesPerChunk
-        |> ConViz.naieveAverage canvas scalingFactor offset
+        |> ConViz.naieveAverage convas canvas
         |> ConViz.updateConsole
         
-    let printMinMax fileName =
-        WavAudio.processAllData fileName samplesPerChunk
-        |> ConViz.minMax canvas scalingFactor offset
-        |> ConViz.updateConsole
+    let printMinMaxParallel fileName =
+        WavAudio.parallelMapAllData fileName samplesPerChunk ConViz.minMaxValues2D
+        |> Seq.map (fun (x, (min, max)) -> ConViz.minMaxToPixels convas x min max)
+        |> Seq.fold ConViz.pointFolder canvas
+
+    let printMinMaxParallelMapped fileName =
+        WavAudio.parallelMapAllData fileName samplesPerChunk ConViz.minMaxValues2D
+        |> Seq.map (fun (x, (min, max)) -> ConViz.minMaxToPixels convas x min max)
+        |> Seq.fold ConViz.pointFolder canvas
 
     let printMinMaxParallel fileName =
         WavAudio.parallelProcessAllData fileName samplesPerChunk
-        |> ConViz.parallelMinMax canvas scalingFactor offset
+        |> ConViz.parallelMinMax convas canvas
 
     let printDirect fileName = 
         WavAudio.processData fileName samplesPerChunk
         |> Seq.mapi (fun i s -> 
             s
             |> ConViz.averageChannels
-            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> ConViz.normalize scalingFactor offset))
+            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> ConViz.normalize convas))
         )
 
     printMinMaxParallel fileName

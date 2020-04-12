@@ -164,7 +164,7 @@
                 bytesRead <- bytesRead + Array.length byteBuffer
         }
 
-    let parallelProcessAllData fileName samplesPerChunk =
+    let inline parallelMapAllData fileName samplesPerChunk sampleMapper =
 
         let header = readHeader fileName true
         let sampleInfo = getSampleInfo header        
@@ -174,11 +174,14 @@
         if bytesPerChunk >= header.SubChunk2Size then
             dataBytes
             |> Array.chunkBySize sampleInfo.BytesPerMultiChannelSample
-            |> Array.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
+            |> Array.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes |> sampleMapper))
         else 
             dataBytes
             |> Array.chunkBySize bytesPerChunk
-            |> Array.Parallel.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
+            |> Array.Parallel.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes |> sampleMapper))
+
+    let parallelProcessAllData fileName samplesPerChunk =
+        parallelMapAllData fileName samplesPerChunk (fun samples -> samples)
 
     let printInfo fileName header = 
         printfn """
