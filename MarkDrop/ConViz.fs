@@ -6,14 +6,22 @@
     open FSharp.Collections.ParallelSeq
     open System
 
+    let updateConsole canvas =
+        Console.SetCursorPosition(0, 0)
+        let value = 
+            canvas
+            |> Drawille.toStrings
+            |> Seq.reduce (+)
+        Console.Write(value)
+       
+    let updateConsolePos charX charY (value: string) =
+        Console.SetCursorPosition(charX, charY)
+        Console.Write(value)
+
     let getChunkSize wavHeader canvas =
         let sampleInfo = getSampleInfo wavHeader
         if sampleInfo.NumSamples <= int canvas.Width then sampleInfo.NumSamples
         else sampleInfo.NumSamples / int canvas.Width
-
-    let averageChannels samples =
-        [0..(Array2D.length2 samples) - 1]
-        |> List.map (fun i -> Array.average (samples.[*,i] |> Array.map (float)))
 
     let rec minMaxValues min max samples =
         match samples with
@@ -33,26 +41,6 @@
     let normalize scalingFactor offset i = 
         int (float i / float -scalingFactor) + offset
 
-    let unique list =
-        list
-        |> List.fold (fun acc e ->
-            match acc with
-            | x::xs when x = e -> acc
-            | _ -> e::acc) []
-        |> List.rev
-
-    let updateConsole canvas =
-        Console.SetCursorPosition(0, 0)
-        let value = 
-            canvas
-            |> Drawille.toStrings
-            |> Seq.reduce (+)
-        Console.Write(value)
-       
-    let updateConsolePos charX charY (value: string) =
-        Console.SetCursorPosition(charX, charY)
-        Console.Write(value)
-
     let updateConsoleDiff prevCanvas nextCanvasFactory = 
         let prevGrid = Array2D.copy prevCanvas.Grid
         let nextCanvas = nextCanvasFactory prevCanvas
@@ -64,18 +52,18 @@
 
         nextCanvas
 
-    let naieveAverage canvas scalingFactor offset seq = 
+    let pointFolder c (p1, p2) =
+        updateConsoleDiff c (fun nextCanvas -> Drawille.drawLine p1 p2 nextCanvas)
+
+    let parallelMinMax canvas scalingFactor offset seq = 
         seq
-        |> Seq.mapi (fun i s -> 
-            //printfn "%i" i
-            s
-            |> averageChannels
-            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalize scalingFactor offset))
-            |> unique
+        |> Seq.map (fun (i, samples) -> 
+            let (min, max) = minMaxValues2D samples
+            let pMin = pixel i (normalize scalingFactor offset (float min))
+            let pMax = pixel i (normalize scalingFactor offset (float max))
+            (pMin, pMax)
         )
-        |> Seq.collect id
-        |> Seq.pairwise
-        |> Seq.fold (fun c (p1, p2) -> Drawille.drawLine p1 p2 c) canvas
+        |> Seq.fold pointFolder canvas
 
     let minMax canvas scalingFactor offset seq = 
         seq
@@ -94,18 +82,9 @@
             |> Drawille.drawLine z p2
             ) canvas
 
-    let pointFolder c (p1, p2) =
-        updateConsoleDiff c (fun nextCanvas -> Drawille.drawLine p1 p2 nextCanvas)
-
-    let parallelMinMax canvas scalingFactor offset seq = 
-        seq
-        |> Seq.map (fun (i, samples) -> 
-            let (min, max) = minMaxValues2D samples
-            let pMin = pixel i (normalize scalingFactor offset (float min))
-            let pMax = pixel i (normalize scalingFactor offset (float max))
-            (pMin, pMax)
-        )
-        |> Seq.fold pointFolder canvas
+    let averageChannels samples =
+        [0..(Array2D.length2 samples) - 1]
+        |> List.map (fun i -> Array.average (samples.[*,i] |> Array.map (float)))
 
     let traceWaveformSamples canvas (samples: int[,]) =
         
@@ -118,7 +97,20 @@
             |> List.mapi (fun i s -> pixel i (List.average s |> normalize scalingFactor offset))
             //|> Util.iterTrans (fun p -> printfn "%A" p)
             |> List.pairwise
-            |> List.fold (fun c (p1, p2) -> drawLine p1 p2 c) canvas
+            |> List.fold pointFolder canvas
+
+    let naieveAverage canvas scalingFactor offset seq = 
+        seq
+        |> Seq.mapi (fun i s -> 
+            //printfn "%i" i
+            s
+            |> averageChannels
+            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalize scalingFactor offset))
+            |> Util.unique
+        )
+        |> Seq.collect id
+        |> Seq.pairwise
+        |> Seq.fold pointFolder canvas
 
     let drawRect w h = 
 

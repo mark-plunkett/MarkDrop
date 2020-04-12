@@ -131,19 +131,17 @@
     let bytesToSamples (header:WavFileHeader) sampleInfo byteBuffer =
         let multiChannelSamples = Array2D.zeroCreate header.NumChannels ((byteBuffer |> Array.length) / sampleInfo.BytesPerMultiChannelSample)
         let mutable index = 0
-        let mutable channel = 0
-        while index <= ((Array.length byteBuffer / sampleInfo.BytesPerMultiChannelSample) - sampleInfo.BytesPerMultiChannelSample) do
+        while index < (Array.length byteBuffer / sampleInfo.BytesPerMultiChannelSample) do
+            let mutable channel = 0
             while channel < header.NumChannels do
 
-                let offset = (index * sampleInfo.BytesPerMultiChannelSample)
-                let channelOffset = offset + (channel + 1) * sampleInfo.BytesPerSample
-                //let sample = byteBuffer.[channelOffset..channelOffset + sampleInfo.BytesPerSample - 1] |> Convert.to32BitInt16
+                let sampleOffset = (index * sampleInfo.BytesPerMultiChannelSample)
+                let channelOffset = sampleOffset + (channel * 2)
                 let sample = Array.sub byteBuffer channelOffset sampleInfo.BytesPerSample |> Convert.to32BitInt16
                 Array2D.set multiChannelSamples channel index sample     
                 channel <- channel + 1
                 
             index <- index + 1
-            channel <- 0
 
         multiChannelSamples
 
@@ -174,10 +172,15 @@
         let bytesPerChunk = samplesPerChunk * sampleInfo.BytesPerMultiChannelSample
         let dataBytes = readData fileName header
 
-        dataBytes
-        |> Array.chunkBySize bytesPerChunk
-        //|> PSeq.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
-        |> Array.Parallel.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
+        if bytesPerChunk >= header.SubChunk2Size then
+            dataBytes
+            |> Array.chunkBySize sampleInfo.BytesPerMultiChannelSample
+            |> Array.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
+        else 
+            dataBytes
+            |> Array.chunkBySize bytesPerChunk
+            //|> PSeq.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
+            |> Array.Parallel.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes))
 
     let printInfo fileName header = 
         printfn """
