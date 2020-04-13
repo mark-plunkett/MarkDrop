@@ -4,29 +4,16 @@
     open WavAudio
 
     open FSharp.Collections.ParallelSeq
-    open System
 
     type Convas = {
-        ScalingFactor: int
-        ZeroOffset: int
+        ScalingFactorY: int
+        ZeroOffsetY: int
     }
-
-    let updateConsole canvas =
-        Console.SetCursorPosition(0, 0)
-        let value = 
-            canvas
-            |> Drawille.toStrings
-            |> Seq.reduce (+)
-        Console.Write(value)
-       
-    let updateConsolePos charX charY (value: string) =
-        Console.SetCursorPosition(charX, charY)
-        Console.Write(value)
 
     let getChunkSize wavHeader canvas =
         let sampleInfo = getSampleInfo wavHeader
         if sampleInfo.NumSamples <= int canvas.Width then sampleInfo.NumSamples
-        else sampleInfo.NumSamples / int canvas.Width
+        else ceil (float sampleInfo.NumSamples / float canvas.Width) |> int
 
     let rec minMaxValues min max samples =
         match samples with
@@ -44,26 +31,15 @@
 
         (PSeq.min flattenedSamples, PSeq.max flattenedSamples)
 
-    let normalize convas i = 
-        int (float i / float -convas.ScalingFactor) + convas.ZeroOffset
-
-    let updateConsoleDiff prevCanvas nextCanvasFactory = 
-        let prevGrid = Array2D.copy prevCanvas.Grid
-        let nextCanvas = nextCanvasFactory prevCanvas
-        let xOffset = int (prevCanvas.OriginX / pixelsPerBrailleX)
-        let yOffset = int (prevCanvas.OriginY / pixelsPerBrailleY)
-        Drawille.enumerate2 prevGrid nextCanvas.Grid (fun (charX, charY) v1 v2 -> 
-            if v1 <> v2 then updateConsolePos (charX + xOffset) (charY + yOffset) (Drawille.brailleToString v2)
-        )
-
-        nextCanvas
+    let normalizeY convas i = 
+        int (float i / float -convas.ScalingFactorY) + convas.ZeroOffsetY
 
     let pointFolder c (p1, p2) =
-        updateConsoleDiff c (fun nextCanvas -> Drawille.drawLine p1 p2 nextCanvas)
+        ConViz.updateConsoleDiff c (fun nextCanvas -> Drawille.drawLine p1 p2 nextCanvas)
 
     let minMaxToPixels convas x min max =
-        let pMin = pixel x (normalize convas (float min))
-        let pMax = pixel x (normalize convas (float max))
+        let pMin = pixel x (normalizeY convas (float min))
+        let pMax = pixel x (normalizeY convas (float max))
         (pMin, pMax)
 
     let minMaxPixelMapperi convas (i, samples) =
@@ -82,13 +58,13 @@
             //printfn "%i" i
             //printfn "min %i, max %i" min max
             let (min, max) = minMaxValues2D s
-            let pMin = pixel i (normalize convas (float min))
-            let pMax = pixel i (normalize convas (float max))
-            let zero = pixel i (normalize convas 0.0)
+            let pMin = pixel i (normalizeY convas (float min))
+            let pMax = pixel i (normalizeY convas (float max))
+            let zero = pixel i (normalizeY convas 0.0)
             (zero, pMin, pMax)
         )
         |> Seq.fold (fun c (z, p1, p2) -> 
-            updateConsole c
+            ConViz.updateConsole c
             Drawille.drawLine z p1 c
             |> Drawille.drawLine z p2
             ) canvas
@@ -102,7 +78,7 @@
         samples
             |> averageChannels
             |> List.splitInto (min (int canvas.Width) (samples |> Array2D.length2))
-            |> List.mapi (fun i s -> pixel i (List.average s |> normalize convas))
+            |> List.mapi (fun i s -> pixel i (List.average s |> normalizeY convas))
             //|> Util.iterTrans (fun p -> printfn "%A" p)
             |> List.pairwise
             |> List.fold pointFolder canvas
@@ -113,28 +89,11 @@
             //printfn "%i" i
             s
             |> averageChannels
-            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalize convas))
+            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> normalizeY convas))
             |> Util.unique
         )
         |> Seq.collect id
         |> Seq.pairwise
         |> Seq.fold pointFolder canvas
 
-    let drawRect w h = 
-
-        let top = [0..w-1] |> List.map (fun i -> pixel i 0)
-        let bottom = [0..w-1] |> List.map (fun i -> pixel i (h-1))
-        let left = [0..h-1] |> List.map (fun i -> pixel 0 i)
-        let right = [0..h-1] |> List.map (fun i -> pixel (w-1) i)
-
-        let drawPoints points canvas =
-            points 
-            |> List.fold (fun c p -> set p c) canvas
-
-        createPixelCanvas w h
-        |> drawPoints top
-        |> drawPoints bottom
-        |> drawPoints left
-        |> drawPoints right
-        |> toStrings
-        |> Seq.reduce (+)
+    

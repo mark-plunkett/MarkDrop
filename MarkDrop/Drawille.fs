@@ -32,12 +32,6 @@
         Y: int<PixelY>
     }
 
-    //type Canvas = {
-    //    Grid: Map<BrailleCharPosition, BrailleChar>
-    //    Width: int<PixelX>
-    //    Height: int<PixelY>
-    //}
-
     type Canvas = {
         Grid: int[,]
         Width: int<PixelX>
@@ -45,6 +39,15 @@
         OriginX: int<PixelX>
         OriginY: int<PixelY>
     }
+
+    module Shapes =
+       
+        type Rect = {
+            A: Pixel
+            B: Pixel
+            C: Pixel
+            D: Pixel
+        }
 
     let pixelsPerBrailleX : int<PixelX/BrailleX> = 2<PixelX/BrailleX>
     let pixelsPerBrailleY : int<PixelY/BrailleY> = 4<PixelY/BrailleY>
@@ -59,13 +62,16 @@
         Y = LanguagePrimitives.Int32WithMeasure y
     }
 
-    let createOffsetPixelCanvas w h x y = {
-        Grid = Array2D.zeroCreate w h
-        Width = LanguagePrimitives.Int32WithMeasure w
-        Height = LanguagePrimitives.Int32WithMeasure h
-        OriginX = LanguagePrimitives.Int32WithMeasure x
-        OriginY = LanguagePrimitives.Int32WithMeasure y
-    }
+    let createOffsetPixelCanvas w h x y = 
+        let roundedW = ceil (float w / float pixelsPerBrailleX) |> int
+        let roundedH = ceil (float h / float pixelsPerBrailleY) |> int
+        {
+            Grid = Array2D.zeroCreate roundedW roundedH
+            Width = LanguagePrimitives.Int32WithMeasure w
+            Height = LanguagePrimitives.Int32WithMeasure h
+            OriginX = LanguagePrimitives.Int32WithMeasure x
+            OriginY = LanguagePrimitives.Int32WithMeasure y
+        }
 
     let createPixelCanvas w h = 
         createOffsetPixelCanvas w h 0 0
@@ -110,14 +116,12 @@
 
     let enumerate canvas f =
         let mutable x = 0
-        let mutable y = 0
-        while y < Array2D.length1 canvas.Grid do
-            while x < Array2D.length2 canvas.Grid do
-                f (x, y) canvas.Grid.[y, x]
-
-                x <- x + 1
-
-            y <- y + 1
+        while x < Array2D.length1 canvas.Grid do
+            let mutable y = 0
+            while y < Array2D.length2 canvas.Grid do
+                f (x, y) (Array2D.get canvas.Grid x y)
+                y <- y + 1
+            x <- x + 1
 
     let enumerate2 (g1: int[,]) (g2: int[,]) f =
         let mutable x = 0
@@ -125,16 +129,21 @@
             let mutable y = 0
             while y < Array2D.length2 g1 do
                 f (x, y) (Array2D.get g1 x y) (Array2D.get g2 x y)
-
                 y <- y + 1
             x <- x + 1
+
+    let clear canvas =
+        enumerate canvas (fun (x, y) _ -> Array2D.set canvas.Grid x y 0)
+
+    let drawPoints points canvas =
+        points 
+        |> List.fold (fun c p -> set p c) canvas
 
     let multAndRound a b =
         let dec = float a * float b
         int (round dec)
     
     let drawLine fromPixel toPixel canvas =
-        //printfn "drawing line from %i,%i to %i,%i" fromPixel.X fromPixel.Y toPixel.X toPixel.Y
         if toPixel = fromPixel then 
             set fromPixel canvas
         else 
@@ -145,8 +154,29 @@
             let yStep = float yDelta / float max
             [0..max]
             |> List.map (fun i -> pixel (int fromPixel.X + multAndRound i xStep) (int fromPixel.Y + multAndRound i yStep))
-            //|> Util.iterTrans (fun p -> printfn "%i:%i" p.X p.Y)
-            |> flip draw canvas
+            |> flip drawPoints canvas
+
+    //let drawRect w h canvas = 
+    //    canvas
+    //    |> drawLine (pixel 0 0) (pixel (w - 1) 0)
+    //    |> drawLine (pixel (w - 1) 0) (pixel (w - 1) (h - 1))
+    //    |> drawLine (pixel (w - 1) (h - 1)) (pixel 0 (h - 1))
+    //    |> drawLine (pixel 0 (h - 1)) (pixel 0 0)
+
+    let drawRect (rect:Shapes.Rect) canvas =
+        canvas
+        |> drawLine rect.A rect.B
+        |> drawLine rect.B rect.C
+        |> drawLine rect.C rect.D
+        |> drawLine rect.D rect.A
+
+    let fillRect (rect:Shapes.Rect) canvas =
+        // TODO: fill the rect...
+        canvas
+        |> drawLine rect.A rect.B
+        |> drawLine rect.B rect.C
+        |> drawLine rect.C rect.D
+        |> drawLine rect.D rect.A
 
     let toStrings canvas =
         let mapWidth = canvas.Width / pixelsPerBrailleX

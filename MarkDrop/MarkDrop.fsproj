@@ -10,7 +10,9 @@
     <Compile Include="Converters.fs" />
     <Compile Include="WavAudio.fs" />
     <Compile Include="Drawille.fs" />
+    <Compile Include="ConViz.fs" />
     <Compile Include="WaveformViz.fs" />
+    <Compile Include="EQViz.fs" />
     <Compile Include="Program.fs" />
     <None Include="Tests.fsx" />
   </ItemGroup>
