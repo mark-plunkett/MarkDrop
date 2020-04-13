@@ -1,4 +1,4 @@
-﻿module ConViz
+﻿module WaveformViz
 
     open Drawille
     open WavAudio

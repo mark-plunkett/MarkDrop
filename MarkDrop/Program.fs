@@ -15,6 +15,8 @@ let main argv =
     //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
     // !!! 24BIT IS BROKEN
     //let fileName = @"D:\Google Drive\Production\Samples\# Synth Drums\unprocessed drums\toms\unusual toms\wasd_tom_sys100_ceramic-2_s_u.wav"
+    // LONG FILE ~1GB
+    // let fileName = @"D:\Google Drive\Music\Mixes\Jungle\Gold Dubs Revamped Classics Mix 2014.wav"
     let fileName = if argv.Length = 0 then  @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav" else argv.[0]
         
     let wavHeader = WavAudio.readHeader fileName false
@@ -32,36 +34,36 @@ let main argv =
     let yPixelOffset = originalCursorTop * 4
     let canvas = Drawille.createOffsetPixelCanvas canvasWidth canvasHeight 0 yPixelOffset
     let convas = {
-        ConViz.Convas.ScalingFactor = (pown 2 wavHeader.BitsPerSample) / int canvas.Height
-        ConViz.Convas.ZeroOffset = int canvas.Height / 2
+        WaveformViz.Convas.ScalingFactor = (pown 2 wavHeader.BitsPerSample) / int canvas.Height
+        WaveformViz.Convas.ZeroOffset = int canvas.Height / 2
     }
-    let samplesPerChunk = ConViz.getChunkSize wavHeader canvas
+    let samplesPerChunk = WaveformViz.getChunkSize wavHeader canvas
     
     let printNaieveAverage fileName =
         WavAudio.processAllData fileName samplesPerChunk
-        |> ConViz.naieveAverage convas canvas
-        |> ConViz.updateConsole
+        |> WaveformViz.naieveAverage convas canvas
+        |> WaveformViz.updateConsole
         
     let printMinMaxParallel fileName =
-        WavAudio.parallelMapAllData fileName samplesPerChunk ConViz.minMaxValues2D
-        |> Seq.map (fun (x, (min, max)) -> ConViz.minMaxToPixels convas x min max)
-        |> Seq.fold ConViz.pointFolder canvas
+        WavAudio.parallelMapAllData fileName samplesPerChunk WaveformViz.minMaxValues2D
+        |> Seq.map (fun (x, (min, max)) -> WaveformViz.minMaxToPixels convas x min max)
+        |> Seq.fold WaveformViz.pointFolder canvas
 
     let printMinMaxParallelMapped fileName =
-        WavAudio.parallelMapAllData fileName samplesPerChunk ConViz.minMaxValues2D
-        |> Seq.map (fun (x, (min, max)) -> ConViz.minMaxToPixels convas x min max)
-        |> Seq.fold ConViz.pointFolder canvas
+        WavAudio.parallelMapAllData fileName samplesPerChunk WaveformViz.minMaxValues2D
+        |> Seq.map (fun (x, (min, max)) -> WaveformViz.minMaxToPixels convas x min max)
+        |> Seq.fold WaveformViz.pointFolder canvas
 
     let printMinMaxParallel fileName =
         WavAudio.parallelProcessAllData fileName samplesPerChunk
-        |> ConViz.parallelMinMax convas canvas
+        |> WaveformViz.parallelMinMax convas canvas
 
     let printDirect fileName = 
         WavAudio.processData fileName samplesPerChunk
         |> Seq.mapi (fun i s -> 
             s
-            |> ConViz.averageChannels
-            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> ConViz.normalize convas))
+            |> WaveformViz.averageChannels
+            |> List.map (fun amplitude -> Drawille.pixel i (amplitude |> WaveformViz.normalize convas))
         )
 
     printMinMaxParallel fileName
