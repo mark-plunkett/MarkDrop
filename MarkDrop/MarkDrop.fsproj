@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="Util.fs" />
     <Compile Include="Converters.fs" />
+    <Compile Include="FFT.fs" />
     <Compile Include="WavAudio.fs" />
     <Compile Include="Drawille.fs" />
     <Compile Include="ConViz.fs" />

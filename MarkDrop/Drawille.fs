@@ -88,14 +88,19 @@
 
     let modify pixel canvas bitwiseOp =
         let brailleCharPosition = pixelToBraillePosition pixel
-        let existingValue = Array2D.get canvas.Grid (int brailleCharPosition.X) (int brailleCharPosition.Y)
-        let dotVal = getMappedBrailleChar pixel
-        if existingValue ||| dotVal = existingValue then
+        let x = int brailleCharPosition.X
+        let y = int brailleCharPosition.Y
+        if x >= Array2D.length1 canvas.Grid || y >= Array2D.length2 canvas.Grid then
             canvas
         else
-            let masked = bitMask existingValue dotVal bitwiseOp
-            Array2D.set canvas.Grid (int brailleCharPosition.X) (int brailleCharPosition.Y) masked
-            canvas
+            let existingValue = Array2D.get canvas.Grid x y
+            let dotVal = getMappedBrailleChar pixel
+            if existingValue ||| dotVal = existingValue then
+                canvas
+            else
+                let masked = bitMask existingValue dotVal bitwiseOp
+                Array2D.set canvas.Grid (int brailleCharPosition.X) (int brailleCharPosition.Y) masked
+                canvas
 
     let set pixel canvas =
         modify pixel canvas (|||)

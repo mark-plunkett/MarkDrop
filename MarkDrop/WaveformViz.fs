@@ -6,8 +6,13 @@
     open FSharp.Collections.ParallelSeq
 
     type Convas = {
-        ScalingFactorY: int
+        ScalingFactorY: float
         ZeroOffsetY: int
+    }
+
+    let convasFromCanvas canvas maxY = {
+        ScalingFactorY = maxY / float canvas.Height
+        ZeroOffsetY = int canvas.Height / 2
     }
 
     let getChunkSize wavHeader canvas =
@@ -46,28 +51,17 @@
         let (min, max) = minMaxValues2D samples
         minMaxToPixels convas i min max
 
-    let parallelMinMax convas canvas seq = 
+    let drawWaveform convas canvas values =
+        values
+        |> List.mapi (fun i v -> Drawille.pixel i (normalizeY convas v))
+        |> List.pairwise
+        |> List.fold (fun c (p1, p2) -> Drawille.drawLine p1 p2 c) canvas
+
+    let drawWaveformSamples convas canvas samples = 
         let mapper = minMaxPixelMapperi convas
-        seq
+        samples
         |> Seq.map mapper
         |> Seq.fold pointFolder canvas
-
-    let minMax convas canvas seq = 
-        seq
-        |> Seq.mapi (fun i s -> 
-            //printfn "%i" i
-            //printfn "min %i, max %i" min max
-            let (min, max) = minMaxValues2D s
-            let pMin = pixel i (normalizeY convas (float min))
-            let pMax = pixel i (normalizeY convas (float max))
-            let zero = pixel i (normalizeY convas 0.0)
-            (zero, pMin, pMax)
-        )
-        |> Seq.fold (fun c (z, p1, p2) -> 
-            ConViz.updateConsole c
-            Drawille.drawLine z p1 c
-            |> Drawille.drawLine z p2
-            ) canvas
 
     let averageChannels samples =
         [0..(Array2D.length2 samples) - 1]
