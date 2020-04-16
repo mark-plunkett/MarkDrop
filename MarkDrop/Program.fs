@@ -36,18 +36,24 @@ let main argv =
     let convas = WaveformViz.convasFromCanvas canvas (pown (float 2) wavHeader.BitsPerSample)
     let samplesPerChunk = WaveformViz.getChunkSize wavHeader canvas
     
-    let printMinMaxParallelMapped fileName =
-        WavAudio.parallelMapAllData fileName samplesPerChunk WaveformViz.minMaxValues2D
-        |> Seq.map (fun (x, (min, max)) -> WaveformViz.minMaxToPixels convas x min max)
-        |> Seq.fold WaveformViz.pointFolder canvas
+    //let printMinMaxParallelMapped fileName =
+    //    WavAudio.parallelMapAllData fileName samplesPerChunk WaveformViz.minMaxValues2D
+    //    |> Seq.map (fun (x, (min, max)) -> WaveformViz.minMaxToPixels convas x min max)
+    //    |> Seq.fold WaveformViz.pointFolder canvas
 
-    let printMinMaxParallel fileName =
-        WavAudio.parallelProcessAllData fileName samplesPerChunk
-        |> WaveformViz.drawWaveformSamples convas canvas
+    //let printMinMaxParallel fileName =
+    //    WavAudio.parallelProcessAllData fileName samplesPerChunk
+    //    |> WaveformViz.drawWaveformSamples convas canvas
 
-    printMinMaxParallel fileName
-    |> ignore
+    //printMinMaxParallel fileName
+    //|> ignore
 
+    WavAudio.parallelProcessAllData fileName samplesPerChunk
+    |> WaveformViz.drawMonoSum convas canvas
+    |> Drawille.toStrings
+    |> Seq.reduce (+)
+    |> printfn "%s"
+    
     Console.CursorTop <- cursorEndY
 
     0

@@ -20,21 +20,21 @@
         if sampleInfo.NumSamples <= int canvas.Width then sampleInfo.NumSamples
         else ceil (float sampleInfo.NumSamples / float canvas.Width) |> int
 
-    let rec minMaxValues min max samples =
-        match samples with
-        | [] -> (min, max)
-        | s::ss -> 
-            if s > max then minMaxValues min s ss
-            else if s < min then minMaxValues s max ss
-            else minMaxValues min max ss
+    let inline minMaxValues values =
+        (PSeq.min values, PSeq.max values)
 
-    let minMaxValues2D (samples2D:int[,]) =
+    let inline minMaxValues2D samples2D =
         let flattenedSamples =
             [0..(Array2D.length1 samples2D) - 1]
             |> PSeq.map (fun i -> samples2D.[i,*])
             |> Array.concat
 
-        (PSeq.min flattenedSamples, PSeq.max flattenedSamples)
+        minMaxValues flattenedSamples
+
+    let inline avgChannels samples2D =
+        [0..(Array2D.length1 samples2D) - 1]
+        |> List.map (fun i -> samples2D.[i,*] |> Seq.map float |> PSeq.max)
+        |> List.average
 
     let normalizeY convas i = 
         int (float i / float -convas.ScalingFactorY) + convas.ZeroOffsetY
@@ -42,20 +42,39 @@
     let pointFolder c (p1, p2) =
         ConViz.updateConsoleDiff c (fun nextCanvas -> Drawille.drawLine p1 p2 nextCanvas)
 
+    let mapToPixel convas x y =
+        pixel x (normalizeY convas y)
+
     let minMaxToPixels convas x min max =
-        let pMin = pixel x (normalizeY convas (float min))
-        let pMax = pixel x (normalizeY convas (float max))
+        let pMin = mapToPixel convas x min
+        let pMax = mapToPixel convas x max
         (pMin, pMax)
 
     let minMaxPixelMapperi convas (i, samples) =
         let (min, max) = minMaxValues2D samples
         minMaxToPixels convas i min max
 
-    let drawWaveform convas canvas values =
-        values
-        |> List.mapi (fun i v -> Drawille.pixel i (normalizeY convas v))
-        |> List.pairwise
-        |> List.fold (fun c (p1, p2) -> Drawille.drawLine p1 p2 c) canvas
+    let drawWaveform convas canvas (values: seq<float>) =
+        let length = Seq.length values
+        if length <= int canvas.Width then 
+            values
+            |> Seq.mapi (fun i v -> pixel i (normalizeY convas v))
+            |> Util.flip Drawille.turtle canvas
+        else
+            let count = ceil (float length / float canvas.Width) |> int
+            values
+            //|> Seq.chunkBySize count
+            //|> Seq.map minMaxValues
+            //|> Seq.mapi (fun i (min, max) -> minMaxToPixels convas i min max)
+            //|> Seq.collect (fun (min, max) -> [|min;max|])
+            |> Seq.mapi (fun i v -> pixel i (normalizeY convas v))
+            |> Util.flip Drawille.turtle canvas
+
+    let drawMonoSum convas canvas samples =
+        samples
+        |> Seq.map (fun samples -> snd samples|> avgChannels)
+        |> Seq.mapi (fun i v -> minMaxToPixels convas i v -v)
+        |> Seq.fold (fun c (min, max) -> Drawille.drawLine min max c) canvas
 
     let drawWaveformSamples convas canvas samples = 
         let mapper = minMaxPixelMapperi convas

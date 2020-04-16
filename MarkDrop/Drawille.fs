@@ -161,6 +161,11 @@
             |> List.map (fun i -> pixel (int fromPixel.X + multAndRound i xStep) (int fromPixel.Y + multAndRound i yStep))
             |> flip drawPoints canvas
 
+    let turtle points canvas =
+        points
+        |> Seq.pairwise
+        |> Seq.fold (fun c (p1, p2) -> drawLine p1 p2 c) canvas
+        
     //let drawRect w h canvas = 
     //    canvas
     //    |> drawLine (pixel 0 0) (pixel (w - 1) 0)

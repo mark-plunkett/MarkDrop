@@ -22,7 +22,8 @@
       
     // use
     
-    let input = [for x in 0. .. 15. -> cos(x)  + cos(4.0 * x)]
+    let max = pown 2 10
+    let input = [for x in 0. .. float max - 1. -> sin(x * 440.)]
         
     let output = 
         input

@@ -28,8 +28,8 @@ open EQViz
 
 // TODO: proper fps/tick management - https://gamedev.stackexchange.com/questions/49591/extremely-confused-over-constant-game-speed-maximum-fps-game-loop
 
-System.Console.CursorVisible <- false
-System.Console.OutputEncoding <- System.Text.Encoding.UTF8
+//System.Console.CursorVisible <- false
+//System.Console.OutputEncoding <- System.Text.Encoding.UTF8
 
 let r = new System.Random()
 
@@ -37,7 +37,7 @@ let fps = 30
 let msPerFrame = 1000 / 30
 let timer = new System.Timers.Timer()
 timer.Start()
-let canvas = createPixelCanvas 100 80
+let canvas = createPixelCanvas 200 80
 
 //while true do
 
@@ -55,8 +55,10 @@ let canvas = createPixelCanvas 100 80
 //    System.Threading.Thread.Sleep(msPerFrame)
     
 let convas = WaveformViz.convasFromCanvas canvas 4.
-FFT.input
+//FFT.input |> WaveformViz.minMaxValues
+FFT.input 
 |> WaveformViz.drawWaveform convas canvas
 |> Drawille.toStrings
 |> Seq.reduce (+)
 |> printfn "%s"
+
