@@ -22,8 +22,8 @@
       
     // use
     
-    let max = pown 2 10
-    let input = [for x in 0. .. float max - 1. -> sin(x * 440.)]
+    let max = pown 2 8
+    let input = [for x in 0. .. float max - 1. -> sin(x/5.)]
         
     let output = 
         input

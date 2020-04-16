@@ -36,8 +36,11 @@
         |> List.map (fun i -> samples2D.[i,*] |> Seq.map float |> PSeq.max)
         |> List.average
 
+    let normalize scalingFactor offset i =
+        int (float i / float -scalingFactor) + offset
+
     let normalizeY convas i = 
-        int (float i / float -convas.ScalingFactorY) + convas.ZeroOffsetY
+        normalize convas.ScalingFactorY convas.ZeroOffsetY i
 
     let pointFolder c (p1, p2) =
         ConViz.updateConsoleDiff c (fun nextCanvas -> Drawille.drawLine p1 p2 nextCanvas)
@@ -54,20 +57,22 @@
         let (min, max) = minMaxValues2D samples
         minMaxToPixels convas i min max
 
-    let drawWaveform convas canvas (values: seq<float>) =
-        let length = Seq.length values
+    let drawWaveform canvas values =
+        let (minY, maxY) = minMaxValues values
+        let scalingFactoryY = (max (abs maxY) (abs minY)) / (float canvas.Height / 2.)
+        let zeroOffsetY = int canvas.Height / 2
+        let length = List.length values
         if length <= int canvas.Width then 
             values
-            |> Seq.mapi (fun i v -> pixel i (normalizeY convas v))
+            |> List.mapi (fun i v -> pixel i (normalize scalingFactoryY zeroOffsetY v))
             |> Util.flip Drawille.turtle canvas
         else
             let count = ceil (float length / float canvas.Width) |> int
             values
-            //|> Seq.chunkBySize count
-            //|> Seq.map minMaxValues
-            //|> Seq.mapi (fun i (min, max) -> minMaxToPixels convas i min max)
-            //|> Seq.collect (fun (min, max) -> [|min;max|])
-            |> Seq.mapi (fun i v -> pixel i (normalizeY convas v))
+            |> List.chunkBySize count
+            |> List.map Seq.average
+            //|> Util.iterTrans (fun i -> printfn "%A" i)
+            |> List.mapi (fun i v -> pixel i (normalize scalingFactoryY zeroOffsetY v))
             |> Util.flip Drawille.turtle canvas
 
     let drawMonoSum convas canvas samples =

@@ -37,7 +37,7 @@ let fps = 30
 let msPerFrame = 1000 / 30
 let timer = new System.Timers.Timer()
 timer.Start()
-let canvas = createPixelCanvas 200 80
+let canvas = createPixelCanvas 256 160
 
 //while true do
 
@@ -54,11 +54,17 @@ let canvas = createPixelCanvas 200 80
     
 //    System.Threading.Thread.Sleep(msPerFrame)
     
-let convas = WaveformViz.convasFromCanvas canvas 4.
 //FFT.input |> WaveformViz.minMaxValues
-FFT.input 
-|> WaveformViz.drawWaveform convas canvas
+FFT.input
+|> WaveformViz.drawWaveform canvas
 |> Drawille.toStrings
 |> Seq.reduce (+)
 |> printfn "%s"
 
+Drawille.clear canvas
+
+FFT.output
+|> WaveformViz.drawWaveform canvas
+|> Drawille.toStrings
+|> Seq.reduce (+)
+|> printfn "%s"

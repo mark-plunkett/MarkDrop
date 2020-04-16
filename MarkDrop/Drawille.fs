@@ -90,7 +90,14 @@
         let brailleCharPosition = pixelToBraillePosition pixel
         let x = int brailleCharPosition.X
         let y = int brailleCharPosition.Y
-        if x >= Array2D.length1 canvas.Grid || y >= Array2D.length2 canvas.Grid then
+        if x >= Array2D.length1 canvas.Grid 
+            || y >= Array2D.length2 canvas.Grid
+            || x < 0
+            || y < 0 
+            || pixel.X >= canvas.Width
+            || pixel.Y >= canvas.Height
+            || int pixel.X < 0
+            || int pixel.Y < 0 then
             canvas
         else
             let existingValue = Array2D.get canvas.Grid x y
