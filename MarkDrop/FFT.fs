@@ -19,14 +19,10 @@
             even + btf, even - btf)
         |> List.unzip
         ||> List.append
-      
-    // use
     
-    let max = pown 2 8
-    let input = [for x in 0. .. float max - 1. -> sin(x/5.)]
-        
-    let output = 
+    let fftList input = 
         input
         |> List.map (fun r -> Complex(r, 0.)) 
         |> fft
+        |> List.take (List.length input / 2)
         |> List.map (fun c -> c.Real)

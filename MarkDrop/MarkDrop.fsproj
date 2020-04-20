@@ -16,10 +16,13 @@
     <Compile Include="EQViz.fs" />
     <Compile Include="Program.fs" />
     <None Include="Tests.fsx" />
+    <None Include="SineTests.fsx" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FParsec" Version="1.1.1" />
     <PackageReference Include="FSharp.Collections.ParallelSeq" Version="1.1.2" />
+    <PackageReference Include="FSharpx.Collections" Version="2.1.2" />
   </ItemGroup>
 
 </Project>

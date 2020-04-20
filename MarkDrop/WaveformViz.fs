@@ -3,6 +3,7 @@
     open Drawille
     open WavAudio
 
+    open FSharpx.Collections
     open FSharp.Collections.ParallelSeq
 
     type Convas = {
@@ -57,21 +58,32 @@
         let (min, max) = minMaxValues2D samples
         minMaxToPixels convas i min max
 
+    let padTo max element list =
+        List.pad (max - List.length list) element list
+
     let drawWaveform canvas values =
-        let (minY, maxY) = minMaxValues values
-        let scalingFactoryY = (max (abs maxY) (abs minY)) / (float canvas.Height / 2.)
         let zeroOffsetY = int canvas.Height / 2
         let length = List.length values
         if length <= int canvas.Width then 
+            let (minY, maxY) = minMaxValues values
+            let scalingFactoryY = (max (abs maxY) (abs minY)) / (float canvas.Height / 2.)
             values
             |> List.mapi (fun i v -> pixel i (normalize scalingFactoryY zeroOffsetY v))
             |> Util.flip Drawille.turtle canvas
         else
-            let count = ceil (float length / float canvas.Width) |> int
-            values
-            |> List.chunkBySize count
-            |> List.map Seq.average
-            //|> Util.iterTrans (fun i -> printfn "%A" i)
+            let chunkSize = ceil (float length / float canvas.Width) |> int
+
+            let averages =
+                values
+                |> List.chunkBySize chunkSize
+                |> List.map (padTo chunkSize 0.)
+                //|> Util.iterTrans (fun i -> printfn "%i" i.Length)
+                |> List.map Seq.average
+
+            let (minY, maxY) = minMaxValues averages
+            let scalingFactoryY = (max (abs maxY) (abs minY)) / (float canvas.Height / 2.)
+
+            averages
             |> List.mapi (fun i v -> pixel i (normalize scalingFactoryY zeroOffsetY v))
             |> Util.flip Drawille.turtle canvas
 

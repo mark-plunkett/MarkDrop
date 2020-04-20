@@ -5,7 +5,7 @@
     open System
 
     let updateConsole canvas =
-        Console.SetCursorPosition(0, 0)
+        Console.SetCursorPosition(int canvas.OriginX, int canvas.OriginY)
         let value = 
             canvas
             |> Drawille.toStrings
@@ -26,3 +26,9 @@
         )
 
         nextCanvas
+
+    let drawCanvas canvas =
+        canvas
+        |> Drawille.toStrings
+        |> Seq.reduce (+)
+        |> printfn "%s"

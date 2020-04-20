@@ -1,5 +1,24 @@
 ﻿open System
 
+(*
+Args
+    
+    -f|--file       Path to file, currently only .wav is supported
+    -w|--waveform   Displays the waveform of the input file
+    --display-mono  Displays the waveform as a mono sum
+
+
+*)
+
+type Args = {
+    FileName: string
+
+}
+
+let parseArgs args =
+
+    {FileName = ""}
+
 [<EntryPoint>]
 let main argv =
 
