@@ -146,6 +146,7 @@
 
     let clear canvas =
         enumerate canvas (fun (x, y) _ -> Array2D.set canvas.Grid x y 0)
+        canvas
 
     let drawPoints points canvas =
         points 
