@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "MarkDrop": {
+      "commandName": "Project",
+      "commandLineArgs": "-v"
+    }
+  }
+}

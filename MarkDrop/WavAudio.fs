@@ -127,12 +127,12 @@
     let readData fileName header =
         System.IO.File.ReadAllBytes(fileName).[44..44 + header.SubChunk2Size - 1]
 
-    let bytesToSamples (header:WavFileHeader) sampleInfo byteBuffer =
-        let multiChannelSamples = Array2D.zeroCreate header.NumChannels ((byteBuffer |> Array.length) / sampleInfo.BytesPerMultiChannelSample)
+    let bytesToSamples sampleInfo byteBuffer =
+        let multiChannelSamples = Array2D.zeroCreate sampleInfo.NumChannels ((byteBuffer |> Array.length) / sampleInfo.BytesPerMultiChannelSample)
         let mutable index = 0
         while index < (Array.length byteBuffer / sampleInfo.BytesPerMultiChannelSample) do
             let mutable channel = 0
-            while channel < header.NumChannels do
+            while channel < sampleInfo.NumChannels do
 
                 let sampleOffset = (index * sampleInfo.BytesPerMultiChannelSample)
                 let channelOffset = sampleOffset + (channel * 2)
@@ -158,7 +158,7 @@
 
             while Array.length byteBuffer > 0 do
                 
-                yield bytesToSamples header sampleInfo byteBuffer
+                yield bytesToSamples sampleInfo byteBuffer
         
                 byteBuffer <- readBytes dataBytes (bytesRead + Array.length byteBuffer) bufferLengthBytes
                 bytesRead <- bytesRead + Array.length byteBuffer
@@ -174,11 +174,11 @@
         if bytesPerChunk >= header.SubChunk2Size then
             dataBytes
             |> Array.chunkBySize sampleInfo.BytesPerMultiChannelSample
-            |> Array.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes |> sampleMapper))
+            |> Array.mapi (fun i sampleBytes -> (i, bytesToSamples sampleInfo sampleBytes |> sampleMapper))
         else 
             dataBytes
             |> Array.chunkBySize bytesPerChunk
-            |> Array.Parallel.mapi (fun i sampleBytes -> (i, bytesToSamples header sampleInfo sampleBytes |> sampleMapper))
+            |> Array.Parallel.mapi (fun i sampleBytes -> (i, bytesToSamples sampleInfo sampleBytes |> sampleMapper))
 
     let parallelProcessAllData fileName samplesPerChunk =
         parallelMapAllData fileName samplesPerChunk (fun samples -> samples)

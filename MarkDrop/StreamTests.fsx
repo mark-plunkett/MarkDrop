@@ -36,48 +36,35 @@ let canvasWidth = 360
 
 let canvas = createPixelCanvas canvasWidth 160
 
-let trig length trigFunc angle =
-    int (length * (trigFunc angle))
+let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+let wavHeader = WavAudio.readHeader fileName false
+let wavData = WavAudio.readData fileName wavHeader
+let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-let rotate angleRadians pixel =
-    let length = sqrt ((float pixel.X**2.) + (float pixel.Y**2.))
-    Drawille.pixel 
-        ((trig (pixel.X|>int|>float) cos angleRadians) - (trig (pixel.Y|>int|>float) sin angleRadians)) 
-        ((trig (pixel.X|>int|>float) sin angleRadians) + (trig (pixel.Y|>int|>float) cos angleRadians)) 
+let numSamples = int (pown 2. 10)
 
-let translate origin p =
-    pixel (int p.X + int origin.X) (int p.Y + int origin.Y)
+type VizState = {
+    ReadOffset: int
+}
 
-let slowFill (state: ConViz.FrameState) canvas = 
-    // fills with vertical lines, 1 per frame
-    let x = state.FrameCount % int canvas.Width
-    drawLine (pixel x 0) (pixel x ((int canvas.Height) - 1)) canvas
+let initialState = {
+    ReadOffset = 0
+}
 
-let rotateRect (state: ConViz.FrameState) canvas =
-    // draws and rotates a square in centre of canvas
-    let aRadians = ((2. * System.Math.PI) / 360.) * float state.FrameCount
-    let origin = pixel (int canvas.Width / 2) (int canvas.Height / 2)
-    let rectDimensions = {| Width = 40; Height = 40 |}
-    let rectOffsets = {| XOffset = rectDimensions.Width/2; YOffset = rectDimensions.Height/2 |}
+let fftViz (state: ConViz.FrameState) canvas vizState =
 
-    let rect = {
-        A = pixel (-rectOffsets.XOffset) (-rectOffsets.YOffset) |> rotate aRadians |> translate origin
-        B = pixel (+rectOffsets.XOffset) (-rectOffsets.YOffset) |> rotate aRadians |> translate origin
-        C = pixel (+rectOffsets.XOffset) (+rectOffsets.YOffset) |> rotate aRadians |> translate origin
-        D = pixel (-rectOffsets.XOffset) (+rectOffsets.YOffset) |> rotate aRadians |> translate origin
-    }
+    let sampleBytes = Array.sub wavData vizState.ReadOffset numSamples
+    let samples = WavAudio.bytesToSamples sampleInfo sampleBytes
 
-    canvas
-    |> clear
-    |> drawRect rect
-
-let rotateLine (state: ConViz.FrameState) canvas =
+    // TODO: this is only using left channel atm
+    let output = FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray)
     
-    let aRadians = ((2. * System.Math.PI) / 360.) * float state.FrameCount
-    let origin = pixel (int canvas.Width / 2) (int canvas.Height / 2)
-    let length = 50.    
-    let pos = pixel (int length) 0 |> rotate aRadians |> translate origin
-    canvas |> clear |> Drawille.drawLine origin pos
+    output
+    |> WaveformViz.drawWaveform (canvas |> Drawille.clear)
+    |> ConViz.updateConsole
 
+    let nextState = { vizState with ReadOffset = vizState.ReadOffset + numSamples}
 
-ConViz.animate rotateRect canvas
+    (canvas, nextState)
+
+ConViz.animateState fftViz canvas initialState

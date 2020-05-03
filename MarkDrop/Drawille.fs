@@ -208,3 +208,14 @@
 
                 yield "\n"
         }
+
+    let trig length trigFunc angle =
+        int (length * (trigFunc angle))
+    
+    let rotate angleRadians p =
+        pixel 
+            ((trig (p.X |> int |> float) cos angleRadians) - (trig (p.Y |> int |> float) sin angleRadians)) 
+            ((trig (p.X |> int |> float) sin angleRadians) + (trig (p.Y |> int |> float) cos angleRadians)) 
+    
+    let translate origin p =
+        pixel (int p.X + int origin.X) (int p.Y + int origin.Y)

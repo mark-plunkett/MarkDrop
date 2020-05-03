@@ -19,25 +19,8 @@ let parseArgs args =
 
     {FileName = ""}
 
-[<EntryPoint>]
-let main argv =
+let drawwaveform fileName =
 
-    // resources
-    // WAV format: https://web.archive.org/web/20141213140451/https://ccrma.stanford.edu/courses/422/projects/WaveFormat/
-    // FFT: https://en.wikipedia.org/wiki/Fast_Fourier_transform
-    // Cooley–Tukey FFT: https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm
-
-    // !!! need to set this for unicode in Powershell 
-    // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
-
-    //let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
-    //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
-    // !!! 24BIT IS BROKEN
-    //let fileName = @"D:\Google Drive\Production\Samples\# Synth Drums\unprocessed drums\toms\unusual toms\wasd_tom_sys100_ceramic-2_s_u.wav"
-    // LONG FILE ~1GB
-    // let fileName = @"D:\Google Drive\Music\Mixes\Jungle\Gold Dubs Revamped Classics Mix 2014.wav"
-    let fileName = if argv.Length = 0 then  @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav" else argv.[0]
-        
     let wavHeader = WavAudio.readHeader fileName false
     wavHeader |> WavAudio.printInfo fileName
 
@@ -74,5 +57,80 @@ let main argv =
     |> printfn "%s"
     
     Console.CursorTop <- cursorEndY
+
+type VizState = {
+    ReadOffset: int
+}
+
+let drawFFT fileName =
+
+    try
+        System.Console.OutputEncoding <- System.Text.Encoding.UTF8
+        System.Console.CursorVisible <- false
+    with
+        _ -> ()
+    
+    let canvasWidth = 360
+    
+    let canvas = Drawille.createPixelCanvas canvasWidth 160
+    
+    let wavHeader = WavAudio.readHeader fileName false
+    let wavData = WavAudio.readData fileName wavHeader
+    let sampleInfo = WavAudio.getSampleInfo wavHeader
+    
+    let numSamples = int (pown 2. 10)
+    
+    
+    
+    let initialState = {
+        ReadOffset = 0
+    }
+    
+    let fftViz (state: ConViz.FrameState) canvas vizState =
+    
+        let sampleBytes = Array.sub wavData vizState.ReadOffset numSamples
+        let samples = WavAudio.bytesToSamples sampleInfo sampleBytes
+    
+        // TODO: this is only using left channel atm
+        let output = FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray)
+        
+        output
+        |> WaveformViz.drawWaveform (canvas |> Drawille.clear)
+        |> ConViz.updateConsole
+    
+        let nextState = { vizState with ReadOffset = vizState.ReadOffset + numSamples}
+    
+        (canvas, nextState)
+    
+    ConViz.animateState fftViz canvas initialState
+
+[<EntryPoint>]
+let main argv =
+
+    // resources
+    // WAV format: https://web.archive.org/web/20141213140451/https://ccrma.stanford.edu/courses/422/projects/WaveFormat/
+    // FFT: https://en.wikipedia.org/wiki/Fast_Fourier_transform
+    // Cooley–Tukey FFT: https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm
+
+    // !!! need to set this for unicode in Powershell 
+    // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
+
+    //let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
+    // !!! 24BIT IS BROKEN
+    //let fileName = @"D:\Google Drive\Production\Samples\# Synth Drums\unprocessed drums\toms\unusual toms\wasd_tom_sys100_ceramic-2_s_u.wav"
+    // LONG FILE ~1GB
+    // let fileName = @"D:\Google Drive\Music\Mixes\Jungle\Gold Dubs Revamped Classics Mix 2014.wav"
+
+
+    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+
+    if argv.[0] = "-w" then
+
+        drawwaveform fileName
+
+    else if argv.[0] = "-v" then
+
+        drawFFT fileName
 
     0
