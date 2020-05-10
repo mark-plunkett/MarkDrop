@@ -37,60 +37,48 @@
     type FrameState = {        
         FrameCount: int
         FrameStartMs: int64
+        FrameDurationMs: int64
+        TotalMs: int64
+        TickCount: int64
     }
 
-    let printDebugInfo info =
-        let fps = if info = 0L then 0L else 1000L / info
-        updateConsolePos 0 0 (sprintf "FPS: %i" fps)
+    let printDebugInfo frameState =
+        let fps = if frameState.FrameDurationMs = 0L then 0L else 1000L / frameState.FrameDurationMs
+        updateConsolePos 0 0 (sprintf "frame#: %i    ms/frame: %i    FPS: %i" frameState.FrameCount frameState.FrameDurationMs fps)
 
-    let animateState animator initialCanvas initialUserState =
+    let animateState animator initialCanvas initialUserState : unit =
 
-        let fps = 30.
-        let msPerFrame = 1000. / fps
+        let tickRate = 1000.
         let timer = new System.Diagnostics.Stopwatch()
         let initialFrameState = {
             FrameCount = 1
             FrameStartMs = 0L
+            FrameDurationMs = 0L
+            TotalMs = 0L
+            TickCount = 0L
         }
+        let startTime = DateTime.UtcNow
         
         let rec drawFrame animator frameState currentCanvas userState = 
 
-            let elapsedMs = timer.ElapsedMilliseconds - frameState.FrameStartMs
-
-            printDebugInfo elapsedMs
-
-            let sleepMs = msPerFrame - float elapsedMs
-            if sleepMs > 0. then
-                Threading.Thread.Sleep(int sleepMs)
-
+            let frameState' = { frameState with FrameDurationMs = timer.ElapsedMilliseconds - frameState.FrameStartMs }
             let startMs = timer.ElapsedMilliseconds
-            let (nextCanvas, nextUserState) = animator frameState currentCanvas userState
+            let (nextCanvas, nextUserState) = animator frameState' currentCanvas userState
 
-            updateConsole nextCanvas
+            printDebugInfo frameState
 
             let nextFrameState = { 
-                frameState with 
+                frameState' with 
                     FrameCount = frameState.FrameCount + 1; 
                     FrameStartMs = startMs
+                    TotalMs = (DateTime.UtcNow - startTime).TotalMilliseconds |> int64
+                    TickCount = (DateTime.UtcNow - startTime).TotalSeconds * tickRate |> int64
             }
 
-            drawFrame animator nextFrameState nextCanvas nextUserState |> ignore
+            drawFrame animator nextFrameState nextCanvas nextUserState
 
         timer.Start()
         drawFrame animator initialFrameState initialCanvas initialUserState
-
-    //let animate animator initialCanvas =
-
-    //    let initialState = {
-    //        FrameCount = 1
-    //        FrameStartMs = 0L
-    //        UserState = None
-    //    }
-
-    //    let nullStateAnimator animator = 
-    //        animator
-
-    //    animateState animator initialCanvas initialState
 
     let slowFill state canvas = 
         // fills with vertical lines, 1 per frame

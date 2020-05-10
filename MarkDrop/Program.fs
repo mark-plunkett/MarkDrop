@@ -58,19 +58,23 @@ let drawwaveform fileName =
     
     Console.CursorTop <- cursorEndY
 
-type VizState = {
+type StreamState = {
     ReadOffset: int
+    SamplesProcessed: int
+    SampleProcessingRate: int
 }
 
 let drawFFT fileName =
 
-    try
-        System.Console.OutputEncoding <- System.Text.Encoding.UTF8
-        System.Console.CursorVisible <- false
-    with
-        _ -> ()
+    Console.OutputEncoding <- Text.Encoding.UTF8
+    Console.CursorVisible <- false
+    let originalCursorTop = Console.CursorTop
+    let w = Console.WindowWidth
+    let h = Console.WindowHeight
+    let cursorEndY = originalCursorTop + (h / 2)
     
-    let canvasWidth = 360
+    let canvasWidth = (w * 2) - 2
+    let canvasHeight = (h * 2) - 8
     
     let canvas = Drawille.createPixelCanvas canvasWidth 160
     
@@ -78,31 +82,71 @@ let drawFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
     
-    let numSamples = int (pown 2. 10)
-    
-    
+    let targetFps = 30.
+    let msPerFrame = 1000./targetFps
+    let samplesPerLoopRaw = sampleInfo.SampleRate / int targetFps
+    let samplesPerLoop = 
+        1 
+        |> Seq.unfold (fun state ->
+            if state > samplesPerLoopRaw then
+                None
+            else
+                Some (state, state * 2)
+            )
+        |> Seq.max
     
     let initialState = {
         ReadOffset = 0
+        SamplesProcessed = 0
+        SampleProcessingRate = 0
     }
     
-    let fftViz (state: ConViz.FrameState) canvas vizState =
+    let printDebugInfo streamState =
+
+        ConViz.updateConsolePos 0 1 
+            (sprintf 
+                "bytes processed: %i    samples processed: %i    processing rate (samples/sec): %i" 
+                streamState.ReadOffset 
+                streamState.SamplesProcessed
+                streamState.SampleProcessingRate
+                )
+
+    let fftViz (frameState: ConViz.FrameState) canvas streamState =
+
+        if Array.length wavData < (streamState.ReadOffset + samplesPerLoop) then
+            (canvas, streamState)
+        else
+
+            let sleepMs = msPerFrame - float frameState.FrameDurationMs
+            if sleepMs > 0. then
+                Threading.Thread.Sleep(int sleepMs)
+
+            let sampleBytes = Array.sub wavData streamState.ReadOffset samplesPerLoop
+            let samples = WavAudio.bytesToSamples sampleInfo sampleBytes
+
+            // TODO: this is only using left channel atm
+            let output = FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray)
     
-        let sampleBytes = Array.sub wavData vizState.ReadOffset numSamples
-        let samples = WavAudio.bytesToSamples sampleInfo sampleBytes
-    
-        // TODO: this is only using left channel atm
-        let output = FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray)
-        
-        output
-        |> WaveformViz.drawWaveform (canvas |> Drawille.clear)
-        |> ConViz.updateConsole
-    
-        let nextState = { vizState with ReadOffset = vizState.ReadOffset + numSamples}
-    
-        (canvas, nextState)
-    
+            output
+            |> WaveformViz.drawWaveform (canvas |> Drawille.clear)
+            |> ConViz.updateConsole
+
+            printDebugInfo streamState
+
+            let samplesProcessed = streamState.SamplesProcessed + Array2D.length2 samples
+            let rate = if frameState.TotalMs > 0L then int64 samplesProcessed / frameState.TotalMs |> int else 0
+            let nextState = { 
+                streamState with 
+                    ReadOffset = streamState.ReadOffset + samplesPerLoop
+                    SamplesProcessed = samplesProcessed 
+                    SampleProcessingRate = rate
+                    }
+
+            (canvas, nextState)
+
     ConViz.animateState fftViz canvas initialState
+
+    Console.CursorTop <- cursorEndY
 
 [<EntryPoint>]
 let main argv =
@@ -116,14 +160,14 @@ let main argv =
     // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
-    //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
+    let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
     // !!! 24BIT IS BROKEN
     //let fileName = @"D:\Google Drive\Production\Samples\# Synth Drums\unprocessed drums\toms\unusual toms\wasd_tom_sys100_ceramic-2_s_u.wav"
     // LONG FILE ~1GB
     // let fileName = @"D:\Google Drive\Music\Mixes\Jungle\Gold Dubs Revamped Classics Mix 2014.wav"
 
 
-    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
 
     if argv.[0] = "-w" then
 

@@ -41,9 +41,9 @@ let wavHeader = WavAudio.readHeader fileName false
 let wavData = WavAudio.readData fileName wavHeader
 let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-let numSamples = int (pown 2. 10)
+let numSamples = int (pown 2. 12)
 
-type VizState = {
+type StreamState = {
     ReadOffset: int
 }
 
@@ -51,9 +51,9 @@ let initialState = {
     ReadOffset = 0
 }
 
-let fftViz (state: ConViz.FrameState) canvas vizState =
+let fftViz (state: ConViz.FrameState) canvas streamState =
 
-    let sampleBytes = Array.sub wavData vizState.ReadOffset numSamples
+    let sampleBytes = Array.sub wavData streamState.ReadOffset numSamples
     let samples = WavAudio.bytesToSamples sampleInfo sampleBytes
 
     // TODO: this is only using left channel atm
@@ -63,7 +63,7 @@ let fftViz (state: ConViz.FrameState) canvas vizState =
     |> WaveformViz.drawWaveform (canvas |> Drawille.clear)
     |> ConViz.updateConsole
 
-    let nextState = { vizState with ReadOffset = vizState.ReadOffset + numSamples}
+    let nextState = { streamState with ReadOffset = streamState.ReadOffset + numSamples}
 
     (canvas, nextState)
 
