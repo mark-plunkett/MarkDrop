@@ -63,19 +63,22 @@
 
             let frameState' = { frameState with FrameDurationMs = timer.ElapsedMilliseconds - frameState.FrameStartMs }
             let startMs = timer.ElapsedMilliseconds
-            let (nextCanvas, nextUserState) = animator frameState' currentCanvas userState
+            let next = animator frameState' currentCanvas userState
+            match next with
+            | None -> ()
+            | Some (nextCanvas, nextUserState) -> 
 
-            printDebugInfo frameState
+                printDebugInfo frameState
 
-            let nextFrameState = { 
-                frameState' with 
-                    FrameCount = frameState.FrameCount + 1; 
-                    FrameStartMs = startMs
-                    TotalMs = (DateTime.UtcNow - startTime).TotalMilliseconds |> int64
-                    TickCount = (DateTime.UtcNow - startTime).TotalSeconds * tickRate |> int64
-            }
+                let nextFrameState = { 
+                    frameState' with 
+                        FrameCount = frameState.FrameCount + 1; 
+                        FrameStartMs = startMs
+                        TotalMs = (DateTime.UtcNow - startTime).TotalMilliseconds |> int64
+                        TickCount = (DateTime.UtcNow - startTime).TotalSeconds * tickRate |> int64
+                }
 
-            drawFrame animator nextFrameState nextCanvas nextUserState
+                drawFrame animator nextFrameState nextCanvas nextUserState
 
         timer.Start()
         drawFrame animator initialFrameState initialCanvas initialUserState

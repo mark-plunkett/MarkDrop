@@ -114,7 +114,7 @@ let drawFFT fileName =
     let fftViz (frameState: ConViz.FrameState) canvas streamState =
 
         if Array.length wavData < (streamState.ReadOffset + samplesPerLoop) then
-            (canvas, streamState)
+            None
         else
 
             let sleepMs = msPerFrame - float frameState.FrameDurationMs
@@ -142,7 +142,7 @@ let drawFFT fileName =
                     SampleProcessingRate = rate
                     }
 
-            (canvas, nextState)
+            Some (canvas, nextState)
 
     ConViz.animateState fftViz canvas initialState
 
