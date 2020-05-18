@@ -24,6 +24,5 @@
         input
         |> List.map (fun r -> Complex(r, 0.)) 
         |> fft
-        //|> List.skip 1
         |> List.take (List.length input / 2)
         |> List.map (fun c -> c.Real)

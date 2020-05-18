@@ -130,8 +130,8 @@ let drawFFT fileName =
         //    // Skip this iteration if we are lagging
         //    let nextState = { 
         //        streamState with 
-        //            ReadOffset = streamState.ReadOffset + bytesPerLoop
-        //            SamplesProcessed = streamState.SamplesProcessed + samplesPerLoop
+        //            ReadOffset = streamState.ReadOffset + bytesPerLoopRaw
+        //            SamplesProcessed = streamState.SamplesProcessed + samplesPerLoopRaw
         //            Skips = streamState.Skips + 1
         //            }
         //    Some (canvas, nextState)
@@ -153,7 +153,7 @@ let drawFFT fileName =
                 |> List.map abs
     
             output
-            |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) canvasHeight
+            |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (canvasHeight - 1)
             |> ConViz.updateConsole
 
             printDebugInfo frameState streamState
@@ -193,7 +193,8 @@ let main argv =
 
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
 
     if argv.[0] = "-w" then
 
