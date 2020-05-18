@@ -61,31 +61,28 @@
     let padTo max element list =
         List.pad (max - List.length list) element list
 
-    let drawWaveform canvas values =
-        let zeroOffsetY = int canvas.Height / 2
+    let drawWaveformYOffset canvas yOffset values =
         let length = List.length values
-        if length <= int canvas.Width then 
-            let (minY, maxY) = minMaxValues values
-            let scalingFactoryY = (max (abs maxY) (abs minY)) / (float canvas.Height / 2.)
-            values
-            |> List.mapi (fun i v -> pixel i (normalize scalingFactoryY zeroOffsetY v))
-            |> Util.flip Drawille.turtle canvas
-        else
-            let chunkSize = ceil (float length / float canvas.Width) |> int
-
-            let averages =
+        let values' = 
+            if length <= int canvas.Width then 
+                values
+            else 
+                let chunkSize = ceil (float length / float canvas.Width) |> int
                 values
                 |> List.chunkBySize chunkSize
                 |> List.map (padTo chunkSize 0.)
-                //|> Util.iterTrans (fun i -> printfn "%i" i.Length)
                 |> List.map Seq.average
 
-            let (minY, maxY) = minMaxValues averages
-            let scalingFactoryY = (max (abs maxY) (abs minY)) / (float canvas.Height / 2.)
+        let (minY, maxY) = minMaxValues values'
+        let scalingFactoryY = (max (abs maxY) (abs minY)) / (float canvas.Height / 2.)
+        values'
+        //|> Util.iterTrans (fun i -> printfn "%f" i)
+        |> List.mapi (fun i v -> pixel i (normalize scalingFactoryY yOffset v))
+        |> Util.flip Drawille.turtle canvas
 
-            averages
-            |> List.mapi (fun i v -> pixel i (normalize scalingFactoryY zeroOffsetY v))
-            |> Util.flip Drawille.turtle canvas
+    let drawWaveform canvas values =
+
+        drawWaveformYOffset canvas (int canvas.Height / 2) values
 
     let drawMonoSum convas canvas samples =
         samples

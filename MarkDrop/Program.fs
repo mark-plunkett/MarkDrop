@@ -86,12 +86,13 @@ let drawFFT fileName =
     let targetFps = 30.
     let msPerFrame = 1000./targetFps
     let samplesPerLoopRaw = sampleInfo.SampleRate / int targetFps
-    let samplesPerLoop = 
+    let samplesPerLoopPadded = 
         Seq.initInfinite (fun i -> pown 2 i)
         |> Seq.takeWhile (fun i -> i / 2 < samplesPerLoopRaw)
         |> Seq.last
 
-    let bytesPerLoop = samplesPerLoop * sampleInfo.BytesPerSample
+    let bytesPerLoopRaw = samplesPerLoopRaw * sampleInfo.BytesPerSample
+    let bytesPerLoopPadded = samplesPerLoopPadded * sampleInfo.BytesPerSample
     let fPerPixel = (float sampleInfo.SampleRate / 2.) / float w
     let fString = 
         [0..w]
@@ -120,9 +121,10 @@ let drawFFT fileName =
                 streamState.Skips
                 )
 
+    let mutable zeroedBytes = Array.zeroCreate bytesPerLoopPadded
     let fftViz (frameState: ConViz.FrameState) canvas streamState =
 
-        if Array.length wavData < (streamState.ReadOffset + bytesPerLoop) then
+        if Array.length wavData < (streamState.ReadOffset + bytesPerLoopRaw) then
             None
         //else if frameState.FrameDurationMs > int64 msPerFrame then
         //    // Skip this iteration if we are lagging
@@ -139,14 +141,19 @@ let drawFFT fileName =
             if sleepMs > 0. then
                 Threading.Thread.Sleep(int sleepMs)
 
-            let sampleBytes = Array.sub wavData streamState.ReadOffset bytesPerLoop
-            let samples = WavAudio.bytesToSamples sampleInfo sampleBytes
+            
+            let sampleBytes = 
+                Array.sub wavData streamState.ReadOffset bytesPerLoopRaw
+            Array.blit sampleBytes 0 zeroedBytes 0 bytesPerLoopRaw
+            let samples = WavAudio.bytesToSamples sampleInfo zeroedBytes
 
             // TODO: this is only using left channel atm
-            let output = FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray)
+            let output = 
+                FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray) 
+                |> List.map abs
     
             output
-            |> WaveformViz.drawWaveform (canvas |> Drawille.clear)
+            |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) canvasHeight
             |> ConViz.updateConsole
 
             printDebugInfo frameState streamState
@@ -155,7 +162,7 @@ let drawFFT fileName =
             let rate = if frameState.TotalMs > 0L then float samplesProcessed / float frameState.TotalMs else 0.
             let nextState = { 
                 streamState with 
-                    ReadOffset = streamState.ReadOffset + bytesPerLoop
+                    ReadOffset = streamState.ReadOffset + bytesPerLoopRaw
                     SamplesProcessed = samplesProcessed 
                     SampleProcessingRate = int (rate * 1000.)
                     }
@@ -185,8 +192,8 @@ let main argv =
     // let fileName = @"D:\Google Drive\Music\Mixes\Jungle\Gold Dubs Revamped Classics Mix 2014.wav"
 
 
-    let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
+    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
 
     if argv.[0] = "-w" then
 
