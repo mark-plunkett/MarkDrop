@@ -58,7 +58,7 @@ let drawwaveform fileName =
     
     Console.CursorTop <- cursorEndY
 
-type Vizualizer (fps: int, animator, userStateCombiner, initialUserState) =
+type Vizualizer (fps: int, animator, userStateAggregator, initialUserState) =
 
     let dataAgent msPerFrame animator initialUserState = 
 
@@ -76,13 +76,13 @@ type Vizualizer (fps: int, animator, userStateCombiner, initialUserState) =
             let rec loop currentFrameState = async {
                 let! msg = inbox.TryReceive(msPerFrame)
                 let currentFrameState' = 
-                    { currentFrameState with UserState = userStateCombiner currentFrameState.UserState msg }
+                    { currentFrameState with UserState = userStateAggregator currentFrameState.UserState msg }
                 
                 animator currentFrameState' 
             
                 let nextFrameState = { 
-                    currentFrameState with 
-                        FrameCount = currentFrameState.FrameCount + 1; 
+                    currentFrameState' with 
+                        FrameCount = currentFrameState'.FrameCount + 1; 
                 }
 
                 return! loop nextFrameState
@@ -114,16 +114,14 @@ let asyncFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-    let animator canvas state =
+    let rectAnimator canvas state =
         ConViz.rotateRect canvas state
         |> ConViz.updateConsole
 
-    let userStateCombiner oldData newData =
+    let rectUserStateAggregator oldData newData =
         match newData with
-        | Some data -> oldData @ data
+        | Some data -> data
         | None -> oldData
-        |> ignore
-        []
 
     //let fftAnimator state msg = 
     //    let samples = WavAudio.bytesToSamples sampleInfo msg.Bytes
@@ -137,15 +135,18 @@ let asyncFFT fileName =
     //    |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (canvasHeight - 1)
     //    |> ConViz.updateConsole
 
+
     let convas = ConViz.initialise
     let canvas = Drawille.createPixelCanvas convas.CanvasWidth convas.CanvasHeight
-    Drawille.drawLine (Drawille.pixel 0 0) (Drawille.pixel 10 10) canvas |> ignore
-    let viz = Vizualizer(60, (animator canvas), userStateCombiner, []).Start
+    let viz = Vizualizer(60, (rectAnimator canvas), rectUserStateAggregator, 1.).Start
 
-    
-    Threading.Thread.Sleep 10000
+    let rec feed f =
 
-    ()
+        viz.Post f 
+        Threading.Thread.Sleep 500
+        feed <| f + 1.
+
+    feed 1. |> ignore
 
 
 [<EntryPoint>]

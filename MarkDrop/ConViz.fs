@@ -23,7 +23,7 @@
             Width = w
             Height = h
             CanvasWidth = w * 2
-            CanvasHeight = h * 2
+            CanvasHeight = h * 4
             OriginalCursorY = Console.CursorTop
             CursorEndY = Console.CursorTop + h
         }
@@ -117,7 +117,8 @@
         // draws and rotates a square in centre of canvas
         let aRadians = ((2. * System.Math.PI) / 180.) * float frameState.FrameCount
         let origin = pixel (int canvas.Width / 2) (int canvas.Height / 2)
-        let rectDimensions = {| Width = 50; Height = 50 |}
+        let l = 50. + (sin <| float frameState.FrameCount) * 100. |> int
+        let rectDimensions = {| Width = l; Height = l |}
         let rectOffsets = {| XOffset = rectDimensions.Width/2; YOffset = rectDimensions.Height/2 |}
     
         let rect = {
