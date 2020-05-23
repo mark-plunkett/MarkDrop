@@ -19,6 +19,7 @@
     <Compile Include="ConViz.fs" />
     <Compile Include="WaveformViz.fs" />
     <Compile Include="EQViz.fs" />
+    <Compile Include="SimpleViz.fs" />
     <Compile Include="Program.fs" />
     <None Include="Tests.fsx" />
     <None Include="SineTests.fsx" />

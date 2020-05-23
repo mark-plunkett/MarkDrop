@@ -5,6 +5,29 @@
 
     open System
 
+    type Convas = {
+        Width: int
+        Height: int
+        CanvasWidth: int
+        CanvasHeight: int
+        OriginalCursorY: int
+        CursorEndY: int
+    }
+
+    let initialise =
+        Console.OutputEncoding <- Text.Encoding.UTF8
+        Console.CursorVisible <- false
+        let w = Console.WindowWidth - 1
+        let h = Console.WindowHeight - 1
+        {
+            Width = w
+            Height = h
+            CanvasWidth = w * 2
+            CanvasHeight = h * 2
+            OriginalCursorY = Console.CursorTop
+            CursorEndY = Console.CursorTop + h
+        }
+
     let updateConsole canvas =
         Console.SetCursorPosition(int canvas.OriginX, int canvas.OriginY)
         let value = 
@@ -34,12 +57,13 @@
         |> Seq.reduce (+)
         |> printfn "%s"
 
-    type FrameState = {        
+    type FrameState<'UserState> = {        
         FrameCount: int
         FrameStartMs: int64
         FrameDurationMs: int64
         TotalMs: int64
         TickCount: int64
+        UserState: 'UserState
     }
 
     let printDebugInfo frameState =
@@ -56,6 +80,7 @@
             FrameDurationMs = 0L
             TotalMs = 0L
             TickCount = 0L
+            UserState = []
         }
         let startTime = DateTime.UtcNow
         
@@ -83,14 +108,14 @@
         timer.Start()
         drawFrame animator initialFrameState initialCanvas initialUserState
 
-    let slowFill state canvas = 
+    let slowFill state (canvas: Drawille.Canvas) = 
         // fills with vertical lines, 1 per frame
         let x = state.FrameCount % int canvas.Width
         drawLine (pixel x 0) (pixel x ((int canvas.Height) - 1)) canvas
     
-    let rotateRect state canvas =
+    let rotateRect (canvas: Drawille.Canvas) frameState =
         // draws and rotates a square in centre of canvas
-        let aRadians = ((2. * System.Math.PI) / 180.) * float state.FrameCount
+        let aRadians = ((2. * System.Math.PI) / 180.) * float frameState.FrameCount
         let origin = pixel (int canvas.Width / 2) (int canvas.Height / 2)
         let rectDimensions = {| Width = 50; Height = 50 |}
         let rectOffsets = {| XOffset = rectDimensions.Width/2; YOffset = rectDimensions.Height/2 |}
@@ -106,7 +131,7 @@
         |> clear
         |> drawRect rect
     
-    let rotateLine state canvas =
+    let rotateLine state (canvas: Drawille.Canvas) =
         
         let aRadians = ((2. * System.Math.PI) / 360.) * float state.FrameCount
         let origin = pixel (int canvas.Width / 2) (int canvas.Height / 2)

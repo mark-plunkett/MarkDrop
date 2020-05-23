@@ -1,5 +1,5 @@
 ﻿open System
-
+open ConViz
 (*
 Args
     
@@ -58,121 +58,95 @@ let drawwaveform fileName =
     
     Console.CursorTop <- cursorEndY
 
-type StreamState = {
-    ReadOffset: int
-    SamplesProcessed: int
-    SampleProcessingRate: int
-    Skips: int
+type Vizualizer (fps: int, animator, userStateCombiner, initialUserState) =
+
+    let dataAgent msPerFrame animator initialUserState = 
+
+        let initialFrameState = {
+            FrameCount = 1
+            FrameStartMs = 0L
+            FrameDurationMs = 0L
+            TotalMs = 0L
+            TickCount = 0L
+            UserState = initialUserState
+        }
+
+        MailboxProcessor.Start(fun inbox ->    
+        
+            let rec loop currentFrameState = async {
+                let! msg = inbox.TryReceive(msPerFrame)
+                let currentFrameState' = 
+                    { currentFrameState with UserState = userStateCombiner currentFrameState.UserState msg }
+                
+                animator currentFrameState' 
+            
+                let nextFrameState = { 
+                    currentFrameState with 
+                        FrameCount = currentFrameState.FrameCount + 1; 
+                }
+
+                return! loop nextFrameState
+            }
+
+            loop initialFrameState
+        )
+
+    member _.Start = 
+        let msPerFrame = ceil (1000./ float fps) |> int
+        dataAgent msPerFrame animator initialUserState
+
+type AnimationState = {
+    SampleBytes: int[]
 }
 
-let drawFFT fileName =
+let asyncFFT fileName =
 
-    Console.OutputEncoding <- Text.Encoding.UTF8
-    Console.CursorVisible <- false
-    let originalCursorTop = Console.CursorTop
-    let w = 128 //Console.WindowWidth
-    let h = Console.WindowHeight
-    let cursorEndY = originalCursorTop + (h / 2)
+    (*
+        Setup async animation loop that processes data according to the sample rate of the source.
+        Data will be provided in chunks of some size which is a multiple of BlockAlign (usually 4)
     
-    let canvasWidth = (w * 2)
-    let canvasHeight = (h * 2) - 8
-    
-    let canvas = Drawille.createPixelCanvas canvasWidth canvasHeight
+        Data should be concat'ed and provided to a processor, which can
+            - optionally choose to process the data e.g. if enough data is available
+            - return a new state, minus the processed data
+    *)
     
     let wavHeader = WavAudio.readHeader fileName false
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
+
+    let animator canvas state =
+        ConViz.rotateRect canvas state
+        |> ConViz.updateConsole
+
+    let userStateCombiner oldData newData =
+        match newData with
+        | Some data -> oldData @ data
+        | None -> oldData
+        |> ignore
+        []
+
+    //let fftAnimator state msg = 
+    //    let samples = WavAudio.bytesToSamples sampleInfo msg.Bytes
     
-    let targetFps = 30.
-    let msPerFrame = 1000./targetFps
-    let samplesPerLoopRaw = sampleInfo.SampleRate / int targetFps
-    let samplesPerLoopPadded = 
-        Seq.initInfinite (fun i -> pown 2 i)
-        |> Seq.takeWhile (fun i -> i / 2 < samplesPerLoopRaw)
-        |> Seq.last
+    //    // TODO: this is only using left channel atm
+    //    let output = 
+    //        FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray) 
+    //        |> List.map abs
+        
+    //    output
+    //    |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (canvasHeight - 1)
+    //    |> ConViz.updateConsole
 
-    let bytesPerLoopRaw = samplesPerLoopRaw * sampleInfo.BytesPerSample
-    let bytesPerLoopPadded = samplesPerLoopPadded * sampleInfo.BytesPerSample
-    let fPerPixel = (float sampleInfo.SampleRate / 2.) / float w
-    let fString = 
-        [0..w]
-        |> List.where (fun i -> i % 10 = 0)
-        |> List.map (fun i -> float i * fPerPixel |> int |> string)
-        |> List.map (fun s -> s.PadRight(10))
-        |> List.reduce (+)
+    let convas = ConViz.initialise
+    let canvas = Drawille.createPixelCanvas convas.CanvasWidth convas.CanvasHeight
+    Drawille.drawLine (Drawille.pixel 0 0) (Drawille.pixel 10 10) canvas |> ignore
+    let viz = Vizualizer(60, (animator canvas), userStateCombiner, []).Start
+
     
-    let initialState = {
-        ReadOffset = 0
-        SamplesProcessed = 0
-        SampleProcessingRate = 0
-        Skips = 0
-    }
-    
-    let printDebugInfo (frameState: ConViz.FrameState) streamState =
+    Threading.Thread.Sleep 10000
 
-        let time = TimeSpan.FromMilliseconds(float frameState.TotalMs).ToString()
-        ConViz.updateConsolePos 0 1 
-            (sprintf 
-                "bytes processed: %i    samples processed: %i    processing rate (samples/sec): %i   time: %s    skips: %i" 
-                streamState.ReadOffset 
-                streamState.SamplesProcessed
-                streamState.SampleProcessingRate
-                time
-                streamState.Skips
-                )
+    ()
 
-    let mutable zeroedBytes = Array.zeroCreate bytesPerLoopPadded
-    let fftViz (frameState: ConViz.FrameState) canvas streamState =
-
-        if Array.length wavData < (streamState.ReadOffset + bytesPerLoopRaw) then
-            None
-        //else if frameState.FrameDurationMs > int64 msPerFrame then
-        //    // Skip this iteration if we are lagging
-        //    let nextState = { 
-        //        streamState with 
-        //            ReadOffset = streamState.ReadOffset + bytesPerLoopRaw
-        //            SamplesProcessed = streamState.SamplesProcessed + samplesPerLoopRaw
-        //            Skips = streamState.Skips + 1
-        //            }
-        //    Some (canvas, nextState)
-        else
-
-            let sleepMs = msPerFrame - float frameState.FrameDurationMs
-            if sleepMs > 0. then
-                Threading.Thread.Sleep(int sleepMs)
-
-            
-            let sampleBytes = 
-                Array.sub wavData streamState.ReadOffset bytesPerLoopRaw
-            Array.blit sampleBytes 0 zeroedBytes 0 bytesPerLoopRaw
-            let samples = WavAudio.bytesToSamples sampleInfo zeroedBytes
-
-            // TODO: this is only using left channel atm
-            let output = 
-                FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray) 
-                |> List.map abs
-    
-            output
-            |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (canvasHeight - 1)
-            |> ConViz.updateConsole
-
-            printDebugInfo frameState streamState
-
-            let samplesProcessed = streamState.SamplesProcessed + Array2D.length2 samples
-            let rate = if frameState.TotalMs > 0L then float samplesProcessed / float frameState.TotalMs else 0.
-            let nextState = { 
-                streamState with 
-                    ReadOffset = streamState.ReadOffset + bytesPerLoopRaw
-                    SamplesProcessed = samplesProcessed 
-                    SampleProcessingRate = int (rate * 1000.)
-                    }
-
-            Some (canvas, nextState)
-
-    ConViz.updateConsolePos 0 (h/2) fString
-    ConViz.animateState fftViz canvas initialState
-
-    Console.CursorTop <- cursorEndY
 
 [<EntryPoint>]
 let main argv =
@@ -181,9 +155,6 @@ let main argv =
     // WAV format: https://web.archive.org/web/20141213140451/https://ccrma.stanford.edu/courses/422/projects/WaveFormat/
     // FFT: https://en.wikipedia.org/wiki/Fast_Fourier_transform
     // Cooley–Tukey FFT: https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm
-
-    // !!! need to set this for unicode in Powershell 
-    // $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\single-sine.wav"
     // !!! 24BIT IS BROKEN
@@ -202,6 +173,7 @@ let main argv =
 
     else if argv.[0] = "-v" then
 
-        drawFFT fileName
+        //SimpleViz.drawRawFFT fileName
+        asyncFFT fileName
 
     0
