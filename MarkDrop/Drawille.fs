@@ -116,9 +116,9 @@
         modify pixel canvas (^^^)
 
     let toggle pixel canvas =
-        let dotVal = getMappedBrailleChar pixel
+        //let dotVal = getMappedBrailleChar pixel
         // TODO: try and call modify with xor dotVal since this will toggle the target dot
-        ()
+        modify pixel canvas (fun existing next ->  (~~~ existing &&& next))
 
     let rec draw pixels canvas =
         match pixels with
@@ -152,41 +152,47 @@
         points 
         |> List.fold (fun c p -> set p c) canvas
 
+    let togglePoints points canvas =
+        points 
+        |> List.fold (fun c p -> toggle p c) canvas
+
     let multAndRound a b =
         let dec = float a * float b
         int (round dec)
     
+    let line fromPixel toPixel =
+        let xDelta = int toPixel.X - int fromPixel.X
+        let yDelta = int toPixel.Y - int fromPixel.Y
+        let max = max (abs xDelta) (abs yDelta)
+        let xStep = float xDelta / float max
+        let yStep = float yDelta / float max
+        [0..max]
+        |> List.map (fun i -> pixel (int fromPixel.X + multAndRound i xStep) (int fromPixel.Y + multAndRound i yStep))
+
     let drawLine fromPixel toPixel canvas =
         if toPixel = fromPixel then 
             set fromPixel canvas
         else 
-            let xDelta = int toPixel.X - int fromPixel.X
-            let yDelta = int toPixel.Y - int fromPixel.Y
-            let max = max (abs xDelta) (abs yDelta)
-            let xStep = float xDelta / float max
-            let yStep = float yDelta / float max
-            [0..max]
-            |> List.map (fun i -> pixel (int fromPixel.X + multAndRound i xStep) (int fromPixel.Y + multAndRound i yStep))
+            line fromPixel toPixel
             |> flip drawPoints canvas
 
-    let turtle points canvas =
+    let drawTurtle points canvas =
         points
         |> Seq.pairwise
         |> Seq.fold (fun c (p1, p2) -> drawLine p1 p2 c) canvas
-        
-    //let drawRect w h canvas = 
-    //    canvas
-    //    |> drawLine (pixel 0 0) (pixel (w - 1) 0)
-    //    |> drawLine (pixel (w - 1) 0) (pixel (w - 1) (h - 1))
-    //    |> drawLine (pixel (w - 1) (h - 1)) (pixel 0 (h - 1))
-    //    |> drawLine (pixel 0 (h - 1)) (pixel 0 0)
+       
+    let rect (rect:Shapes.Rect) =
+        [
+            line rect.A rect.B
+            line rect.B rect.C
+            line rect.C rect.D
+            line rect.D rect.A 
+        ]
+        |> List.collect id
 
-    let drawRect (rect:Shapes.Rect) canvas =
+    let drawRect (rectangle:Shapes.Rect) canvas =
         canvas
-        |> drawLine rect.A rect.B
-        |> drawLine rect.B rect.C
-        |> drawLine rect.C rect.D
-        |> drawLine rect.D rect.A
+        |> drawPoints (rect <| rectangle)
 
     let fillRect (rect:Shapes.Rect) canvas =
         // TODO: fill the rect...
@@ -199,15 +205,17 @@
     let toStrings canvas =
         let mapWidth = canvas.Width / pixelsPerBrailleX
         let mapHeight = canvas.Height / pixelsPerBrailleY
-        seq {
-            for y in [0..int mapHeight - 1] do
-                for x in [0..int mapWidth - 1] do
-                    match Array2D.get canvas.Grid x y with
-                    | 0 -> yield " "
-                    | braille -> yield brailleToString braille
+        let builder = System.Text.StringBuilder()
 
-                yield "\n"
-        }
+        for y in [0..int mapHeight - 1] do
+            for x in [0..int mapWidth - 1] do
+                match Array2D.get canvas.Grid x y with
+                | 0 -> builder.Append(" ") |> ignore
+                | braille -> builder.Append(brailleToString braille) |> ignore
+
+            builder.Append("\n") |> ignore
+
+        builder.ToString()        
 
     let trig length trigFunc angle =
         int (length * (trigFunc angle))

@@ -30,11 +30,9 @@
 
     let updateConsole canvas =
         Console.SetCursorPosition(int canvas.OriginX, int canvas.OriginY)
-        let value = 
-            canvas
+        canvas
             |> Drawille.toStrings
-            |> Seq.reduce (+)
-        Console.Write(value)
+            |> Console.Write
        
     let updateConsolePos charX charY (value: string) =
         Console.SetCursorPosition(charX, charY)
@@ -54,14 +52,12 @@
     let drawCanvas canvas =
         canvas
         |> Drawille.toStrings
-        |> Seq.reduce (+)
         |> printfn "%s"
 
     type FrameState<'UserState> = {        
         FrameCount: int
         FrameStartMs: int64
         FrameDurationMs: int64
-        TotalMs: int64
         TickCount: int64
         UserState: 'UserState
     }
@@ -78,7 +74,6 @@
             FrameCount = 1
             FrameStartMs = 0L
             FrameDurationMs = 0L
-            TotalMs = 0L
             TickCount = 0L
             UserState = []
         }
@@ -99,7 +94,6 @@
                     frameState' with 
                         FrameCount = frameState.FrameCount + 1; 
                         FrameStartMs = startMs
-                        TotalMs = (DateTime.UtcNow - startTime).TotalMilliseconds |> int64
                         TickCount = (DateTime.UtcNow - startTime).TotalSeconds * tickRate |> int64
                 }
 
@@ -117,7 +111,7 @@
         // draws and rotates a square in centre of canvas
         let aRadians = ((2. * System.Math.PI) / 180.) * float frameState.FrameCount
         let origin = pixel (int canvas.Width / 2) (int canvas.Height / 2)
-        let l = 50. + (sin <| float frameState.FrameCount) * 100. |> int
+        let l = 50. + (sin <| (float frameState.FrameCount / 10.)) * 100. |> int
         let rectDimensions = {| Width = l; Height = l |}
         let rectOffsets = {| XOffset = rectDimensions.Width/2; YOffset = rectDimensions.Height/2 |}
     
@@ -128,9 +122,9 @@
             D = pixel (-rectOffsets.XOffset) (+rectOffsets.YOffset) |> rotate aRadians |> translate origin
         }
     
-        canvas
-        |> clear
-        |> drawRect rect
+        rect
+        |> Drawille.rect
+        |> Util.flip Drawille.togglePoints canvas
     
     let rotateLine state (canvas: Drawille.Canvas) =
         

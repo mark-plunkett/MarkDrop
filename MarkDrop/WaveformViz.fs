@@ -78,7 +78,7 @@
         values'
         //|> Util.iterTrans (fun i -> printfn "%f" i)
         |> List.mapi (fun i v -> pixel i (normalize scalingFactoryY yOffset v))
-        |> Util.flip Drawille.turtle canvas
+        |> Util.flip Drawille.drawTurtle canvas
 
     let drawWaveform canvas values =
 
