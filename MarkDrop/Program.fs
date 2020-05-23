@@ -57,53 +57,6 @@ let drawwaveform fileName =
     
     Console.CursorTop <- cursorEndY
 
-type Vizualizer (fps: int, animator, userStateAggregator, initialUserState) =
-
-    let dataAgent msPerFrame animator initialUserState = 
-
-        let initialFrameState = {
-            FrameCount = 1
-            FrameStartMs = 0L
-            FrameDurationMs = 0L
-            TickCount = 0L
-            UserState = initialUserState
-        }
-
-        let timer = new System.Diagnostics.Stopwatch()
-        timer.Start()
-
-        MailboxProcessor.Start(fun inbox ->    
-        
-            let rec loop currentFrameState = async {
-                let! msg = inbox.TryReceive(msPerFrame)
-                
-                let currentFrameState' = 
-                    { currentFrameState with 
-                        UserState = userStateAggregator currentFrameState.UserState msg }
-                
-                animator currentFrameState' 
-            
-                let elapsedMs = timer.ElapsedMilliseconds
-                let nextFrameState = { 
-                    currentFrameState' with 
-                        FrameCount = currentFrameState'.FrameCount + 1
-                        FrameStartMs = elapsedMs
-                        FrameDurationMs = elapsedMs - currentFrameState.FrameStartMs
-                        TickCount = elapsedMs
-                }
-
-                ConViz.printDebugInfo nextFrameState
-
-                return! loop nextFrameState
-            }
-
-            loop initialFrameState
-        )
-
-    member _.Start = 
-        let msPerFrame = ceil (1000./ float fps) |> int
-        dataAgent msPerFrame animator initialUserState
-
 type AnimationState = {
     SampleBytes: int[]
 }
@@ -147,7 +100,7 @@ let asyncFFT fileName =
 
     let convas = ConViz.initialise
     let canvas = Drawille.createPixelCanvas convas.CanvasWidth convas.CanvasHeight
-    let viz = Vizualizer(100, (rectAnimator canvas), rectUserStateAggregator, 1.).Start
+    let viz = Vizualizer((rectAnimator canvas), rectUserStateAggregator, 1.).Start
 
     let rec feed f =
 

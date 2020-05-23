@@ -14,19 +14,13 @@
         CursorEndY: int
     }
 
-    let initialise =
-        Console.OutputEncoding <- Text.Encoding.UTF8
-        Console.CursorVisible <- false
-        let w = Console.WindowWidth - 1
-        let h = Console.WindowHeight - 1
-        {
-            Width = w
-            Height = h
-            CanvasWidth = w * 2
-            CanvasHeight = h * 4
-            OriginalCursorY = Console.CursorTop
-            CursorEndY = Console.CursorTop + h
-        }
+    type FrameState<'UserState> = {        
+        FrameCount: int
+        FrameStartMs: int64
+        FrameDurationMs: int64
+        TickCount: int64
+        UserState: 'UserState
+    }
 
     let updateConsole canvas =
         Console.SetCursorPosition(int canvas.OriginX, int canvas.OriginY)
@@ -49,58 +43,75 @@
 
         nextCanvas
 
-    let drawCanvas canvas =
-        canvas
-        |> Drawille.toStrings
-        |> printfn "%s"
-
-    type FrameState<'UserState> = {        
-        FrameCount: int
-        FrameStartMs: int64
-        FrameDurationMs: int64
-        TickCount: int64
-        UserState: 'UserState
-    }
-
     let printDebugInfo frameState =
         let fps = if frameState.FrameDurationMs = 0L then 0L else 1000L / frameState.FrameDurationMs
         updateConsolePos 0 0 (sprintf "frame#: %i    ms/frame: %i    FPS: %i" frameState.FrameCount frameState.FrameDurationMs fps)
 
-    let animateState animator initialCanvas initialUserState : unit =
+    type Vizualizer (animator, userStateAggregator, initialUserState) =
 
-        let tickRate = 1000.
-        let timer = new System.Diagnostics.Stopwatch()
-        let initialFrameState = {
-            FrameCount = 1
-            FrameStartMs = 0L
-            FrameDurationMs = 0L
-            TickCount = 0L
-            UserState = []
-        }
-        let startTime = DateTime.UtcNow
+        let dataAgent msPerFrame animator initialUserState = 
+
+            let initialFrameState = {
+                FrameCount = 1
+                FrameStartMs = 0L
+                FrameDurationMs = 0L
+                TickCount = 0L
+                UserState = initialUserState
+            }
+
+            let timer = new System.Diagnostics.Stopwatch()
+            timer.Start()
+
+            MailboxProcessor.Start(fun inbox ->    
         
-        let rec drawFrame animator frameState currentCanvas userState = 
+                let rec loop currentFrameState = async {
+                    let! msg = inbox.TryReceive(msPerFrame)
+                
+                    let currentFrameState' = 
+                        { currentFrameState with 
+                            UserState = userStateAggregator currentFrameState.UserState msg }
+                
+                    animator currentFrameState' 
+            
+                    let elapsedMs = timer.ElapsedMilliseconds
+                    let nextFrameState = { 
+                        currentFrameState' with 
+                            FrameCount = currentFrameState'.FrameCount + 1
+                            FrameStartMs = elapsedMs
+                            FrameDurationMs = elapsedMs - currentFrameState.FrameStartMs
+                            TickCount = elapsedMs
+                    }
 
-            let frameState' = { frameState with FrameDurationMs = timer.ElapsedMilliseconds - frameState.FrameStartMs }
-            let startMs = timer.ElapsedMilliseconds
-            let next = animator frameState' currentCanvas userState
-            match next with
-            | None -> ()
-            | Some (nextCanvas, nextUserState) -> 
+                    printDebugInfo nextFrameState
 
-                printDebugInfo frameState
-
-                let nextFrameState = { 
-                    frameState' with 
-                        FrameCount = frameState.FrameCount + 1; 
-                        FrameStartMs = startMs
-                        TickCount = (DateTime.UtcNow - startTime).TotalSeconds * tickRate |> int64
+                    return! loop nextFrameState
                 }
 
-                drawFrame animator nextFrameState nextCanvas nextUserState
+                loop initialFrameState
+            )
 
-        timer.Start()
-        drawFrame animator initialFrameState initialCanvas initialUserState
+        member _.Start = 
+            let msPerFrame = 1
+            dataAgent msPerFrame animator initialUserState
+
+    let initialise =
+        Console.OutputEncoding <- Text.Encoding.UTF8
+        Console.CursorVisible <- false
+        let w = Console.WindowWidth - 1
+        let h = Console.WindowHeight - 1
+        {
+            Width = w
+            Height = h
+            CanvasWidth = w * 2
+            CanvasHeight = h * 4
+            OriginalCursorY = Console.CursorTop
+            CursorEndY = Console.CursorTop + h
+        }
+
+    let drawCanvas canvas =
+        canvas
+        |> Drawille.toStrings
+        |> printfn "%s"
 
     let slowFill state (canvas: Drawille.Canvas) = 
         // fills with vertical lines, 1 per frame
