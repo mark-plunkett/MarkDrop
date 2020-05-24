@@ -113,11 +113,9 @@
         modify pixel canvas (|||)
 
     let unset pixel canvas =
-        modify pixel canvas (^^^)
+        modify pixel canvas (fun existing next ->  (existing &&& 0))
 
     let toggle pixel canvas =
-        //let dotVal = getMappedBrailleChar pixel
-        // TODO: try and call modify with xor dotVal since this will toggle the target dot
         modify pixel canvas (fun existing next ->  (~~~ existing &&& next))
 
     let rec draw pixels canvas =
@@ -148,13 +146,18 @@
         enumerate canvas (fun (x, y) _ -> Array2D.set canvas.Grid x y 0)
         canvas
 
-    let drawPoints points canvas =
+    let modifyPoints f points canvas =
         points 
-        |> List.fold (fun c p -> set p c) canvas
+        |> List.fold (fun c p -> f p c) canvas
 
-    let togglePoints points canvas =
-        points 
-        |> List.fold (fun c p -> toggle p c) canvas
+    let drawPoints =
+        modifyPoints set
+
+    let erasePoints =
+        modifyPoints unset
+
+    let togglePoints =
+        modifyPoints toggle
 
     let multAndRound a b =
         let dec = float a * float b

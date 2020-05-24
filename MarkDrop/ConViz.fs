@@ -26,7 +26,7 @@
         Console.SetCursorPosition(int canvas.OriginX, int canvas.OriginY)
         canvas
             |> Drawille.toStrings
-            |> Console.Write
+            |> Console.Out.Write
        
     let updateConsolePos charX charY (value: string) =
         Console.SetCursorPosition(charX, charY)
@@ -47,11 +47,11 @@
         let fps = if frameState.FrameDurationMs = 0L then 0L else 1000L / frameState.FrameDurationMs
         updateConsolePos 0 0 (sprintf "frame#: %i    ms/frame: %i    FPS: %i" frameState.FrameCount frameState.FrameDurationMs fps)
 
-    type Vizualizer (animator, userStateAggregator, initialUserState) =
+    type Vizualizer<'TUserState> (animator, userStateAggregator, initialUserState) =
 
         let dataAgent msPerFrame animator initialUserState = 
 
-            let initialFrameState = {
+            let initialFrameState: FrameState<'TUserState> = {
                 FrameCount = 1
                 FrameStartMs = 0L
                 FrameDurationMs = 0L
@@ -59,19 +59,19 @@
                 UserState = initialUserState
             }
 
-            let timer = new System.Diagnostics.Stopwatch()
+            let timer = System.Diagnostics.Stopwatch()
             timer.Start()
 
-            MailboxProcessor.Start(fun inbox ->    
+            MailboxProcessor<'TUserState>.Start(fun inbox ->    
         
                 let rec loop currentFrameState = async {
                     let! msg = inbox.TryReceive(msPerFrame)
-                
+                    
                     let currentFrameState' = 
                         { currentFrameState with 
                             UserState = userStateAggregator currentFrameState.UserState msg }
                 
-                    animator currentFrameState' 
+                    let nextUserState = animator currentFrameState' 
             
                     let elapsedMs = timer.ElapsedMilliseconds
                     let nextFrameState = { 
@@ -80,6 +80,7 @@
                             FrameStartMs = elapsedMs
                             FrameDurationMs = elapsedMs - currentFrameState.FrameStartMs
                             TickCount = elapsedMs
+                            UserState = nextUserState
                     }
 
                     printDebugInfo nextFrameState
@@ -122,7 +123,7 @@
         // draws and rotates a square in centre of canvas
         let aRadians = ((2. * System.Math.PI) / 180.) * float frameState.FrameCount
         let origin = pixel (int canvas.Width / 2) (int canvas.Height / 2)
-        let l = 50. + (sin <| (float frameState.FrameCount / 10.)) * 100. |> int
+        let l = 50. + (sin <| (float frameState.FrameCount / 100.)) * 100. |> int
         let rectDimensions = {| Width = l; Height = l |}
         let rectOffsets = {| XOffset = rectDimensions.Width/2; YOffset = rectDimensions.Height/2 |}
     
@@ -133,9 +134,15 @@
             D = pixel (-rectOffsets.XOffset) (+rectOffsets.YOffset) |> rotate aRadians |> translate origin
         }
     
+        let t = frameState.FrameCount % 20
+        let f = 
+            if t = 1 then Drawille.drawPoints
+            else if t = 2 then Drawille.togglePoints
+            else Drawille.erasePoints
+
         rect
         |> Drawille.rect
-        |> Util.flip Drawille.togglePoints canvas
+        |> Util.flip f canvas
     
     let rotateLine state (canvas: Drawille.Canvas) =
         

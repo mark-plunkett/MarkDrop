@@ -61,46 +61,22 @@ type AnimationState = {
     SampleBytes: int[]
 }
 
-let asyncFFT fileName =
+let animateRect viz =
 
-    (*
-        Setup async animation loop that processes data according to the sample rate of the source.
-        Data will be provided in chunks of some size which is a multiple of BlockAlign (usually 4)
-    
-        Data should be concat'ed and provided to a processor, which can
-            - optionally choose to process the data e.g. if enough data is available
-            - return a new state, minus the processed data
-    *)
-    
-    let wavHeader = WavAudio.readHeader fileName false
-    let wavData = WavAudio.readData fileName wavHeader
-    let sampleInfo = WavAudio.getSampleInfo wavHeader
+    let convas = ConViz.initialise
+    let canvas = Drawille.createPixelCanvas convas.CanvasWidth convas.CanvasHeight
 
     let rectAnimator canvas state =
         ConViz.rotateRect canvas state
         |> ConViz.updateConsole
+        state.UserState
 
     let rectUserStateAggregator oldData newData =
         match newData with
         | Some data -> data
         | None -> oldData
 
-    //let fftAnimator state msg = 
-    //    let samples = WavAudio.bytesToSamples sampleInfo msg.Bytes
-    
-    //    // TODO: this is only using left channel atm
-    //    let output = 
-    //        FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray) 
-    //        |> List.map abs
-        
-    //    output
-    //    |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (canvasHeight - 1)
-    //    |> ConViz.updateConsole
-
-
-    let convas = ConViz.initialise
-    let canvas = Drawille.createPixelCanvas convas.CanvasWidth convas.CanvasHeight
-    let viz = Vizualizer((rectAnimator canvas), rectUserStateAggregator, 1.).Start
+    let viz = Vizualizer<float>((rectAnimator canvas), rectUserStateAggregator, 1.).Start
 
     let rec feed f =
 
@@ -109,6 +85,117 @@ let asyncFFT fileName =
         feed <| f + 1.
 
     feed 1. |> ignore
+
+let asyncFFT fileName =
+
+    (*
+        Setup async animation loop that processes data according to the sample rate of the source.
+        Data will be provided in chunks of some size which is a multiple of BlockAlign (usually 4)
+    
+        Data should be concat'ed and provided to a processor, which can
+            - optionally choose to process the data when enough data is available
+            - return a new state, minus the processed data
+    *)
+
+    let convas = ConViz.initialise
+    let canvas = Drawille.createPixelCanvas convas.CanvasWidth convas.CanvasHeight
+
+    let wavHeader = WavAudio.readHeader fileName false
+    let wavData = WavAudio.readData fileName wavHeader
+    let sampleInfo = WavAudio.getSampleInfo wavHeader
+    let fftBlockSize = pown 2 12
+
+    let fftUserStateAggregator oldData newData =
+        match newData with
+        | Some data -> Array.append oldData data 
+        | None -> oldData
+
+    let fftAnimator canvas frameState = 
+
+        let rec processBlock sampleBytes =
+
+            
+
+            if Array.isEmpty sampleBytes then
+                sampleBytes
+            else
+
+                let (data, next) = 
+                    if Array.length sampleBytes < fftBlockSize then
+                        (sampleBytes, [||])
+                    else
+                        Array.splitAt fftBlockSize sampleBytes
+
+                let bytes = 
+                    if Array.length data < fftBlockSize then
+                        let zeroed = Array.zeroCreate fftBlockSize
+                        Array.blit data 0 zeroed 0 (Array.length data)
+                        zeroed
+                    else
+                        data
+
+                let samples = WavAudio.bytesToSamples sampleInfo bytes
+                //printfn "%i" <| Array2D.length2 samples
+
+                // TODO: this is only using left channel atm
+                let output = 
+                    FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray) 
+                    |> List.mapi (fun i x -> 
+                        match i with
+                        | 0 -> 0.
+                        | _ -> abs x
+                    )
+
+                output
+                |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (int canvas.Height - 1)
+                |> ConViz.updateConsole
+
+                processBlock next
+
+        processBlock frameState.UserState
+
+    let viz = Vizualizer((fftAnimator canvas), fftUserStateAggregator, Array.zeroCreate 0).Start
+    
+    let avgBytesPerSecond = (wavHeader.SampleRate * wavHeader.BitsPerSample) / 8
+    let avgBytesPerMs = avgBytesPerSecond / 1000
+    let bufferSizeMs = 100
+    let bytesPerLoop = avgBytesPerMs * bufferSizeMs
+    let bytesPerLoopPadded = 
+        Seq.initInfinite (fun i -> pown 2 i)
+        |> Seq.takeWhile (fun i -> i / 2 < bytesPerLoop)
+        |> Seq.last
+    let mutable i = 0
+    let throttleResolution = 10
+    let avgBytesPerCheck = avgBytesPerSecond / throttleResolution
+
+    let timer = System.Diagnostics.Stopwatch()
+    timer.Start()
+
+    while i * bytesPerLoopPadded < Array.length wavData do
+
+        let readOffset = i * bytesPerLoopPadded
+        let byteCount = min bytesPerLoopPadded (Array.length wavData - readOffset)
+        let sampleBytes = Array.sub wavData readOffset byteCount
+        viz.Post <| sampleBytes
+        
+        let expectedBytes = timer.Elapsed.TotalMilliseconds * float bytesPerLoopPadded |> int
+        let diff = readOffset - expectedBytes
+        // if diff > 0 then
+        //     let sleepMs = diff / avgBytesPerMs
+        //     System.Diagnostics.Debug.WriteLine(sprintf "Sleeping for %i ms" sleepMs)
+        //     Threading.Thread.Sleep (sleepMs)
+
+        Threading.Thread.Sleep (bufferSizeMs / 2)
+
+        i <- i + 1
+
+    ()
+
+    
+
+
+
+    
 
 
 [<EntryPoint>]
@@ -128,7 +215,8 @@ let main argv =
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
     //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
-    let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
+    //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
+    let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
 
     if argv.[0] = "-w" then
 
