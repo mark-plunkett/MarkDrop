@@ -114,25 +114,22 @@ let asyncFFT fileName =
 
         let rec processBlock sampleBytes =
 
-            
-
-            if Array.isEmpty sampleBytes then
-                sampleBytes
-            else
+            match sampleBytes with
+            | [||] -> sampleBytes
+            | _ ->
 
                 let (data, next) = 
-                    if Array.length sampleBytes < fftBlockSize then
-                        (sampleBytes, [||])
-                    else
-                        Array.splitAt fftBlockSize sampleBytes
+                    match Array.length sampleBytes with
+                    | x when x < fftBlockSize -> (sampleBytes, [||])
+                    | _ -> Array.splitAt fftBlockSize sampleBytes
 
                 let bytes = 
-                    if Array.length data < fftBlockSize then
+                    match Array.length data with
+                    | x when x < fftBlockSize ->
                         let zeroed = Array.zeroCreate fftBlockSize
                         Array.blit data 0 zeroed 0 (Array.length data)
                         zeroed
-                    else
-                        data
+                    | _ -> data
 
                 let samples = WavAudio.bytesToSamples sampleInfo bytes
                 //printfn "%i" <| Array2D.length2 samples
