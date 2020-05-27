@@ -187,9 +187,9 @@ let main argv =
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
     //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
-    //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
+    let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
-    let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"
 
     if argv.[0] = "-w" then
 

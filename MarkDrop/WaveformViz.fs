@@ -41,7 +41,7 @@
 
     let drawWaveformScaled canvas range values =
 
-        let translateY value = int canvas.Height - value
+        let translateY value = int canvas.Height - 1 - value
         let scaleY = float canvas.Height / range |> scale
 
         let length = List.length values
