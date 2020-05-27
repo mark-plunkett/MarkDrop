@@ -26,3 +26,17 @@
         |> fft
         |> List.take (List.length input / 2)
         |> List.map (fun c -> c.Real)
+
+    let naudioFFT input m =
+
+        let mutable data = input |> Array.map (fun i -> 
+            let mutable t = NAudio.Dsp.Complex()
+            t.X <- i
+            t.Y <- 0. |> float32
+            t
+        )
+        NAudio.Dsp.FastFourierTransform.FFT(true, m, data)
+
+        data
+        |> Array.take (Array.length input / 2)
+        |> Array.map (fun c -> c.X |> float)

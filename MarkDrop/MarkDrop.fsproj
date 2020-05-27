@@ -30,6 +30,7 @@
     <PackageReference Include="FParsec" Version="1.1.1" />
     <PackageReference Include="FSharp.Collections.ParallelSeq" Version="1.1.2" />
     <PackageReference Include="FSharpx.Collections" Version="2.1.2" />
+    <PackageReference Include="NAudio" Version="1.10.0" />
   </ItemGroup>
 
 </Project>

@@ -36,8 +36,6 @@
         Grid: int[,]
         Width: int<PixelX>
         Height: int<PixelY>
-        OriginX: int<PixelX>
-        OriginY: int<PixelY>
     }
 
     module Shapes =
@@ -62,19 +60,20 @@
         Y = LanguagePrimitives.Int32WithMeasure y
     }
 
-    let createOffsetPixelCanvas w h x y = 
+    let createOffsetPixelCanvas w h = 
         let roundedW = ceil (float w / float pixelsPerBrailleX) |> int
         let roundedH = ceil (float h / float pixelsPerBrailleY) |> int
         {
             Grid = Array2D.zeroCreate roundedW roundedH
             Width = LanguagePrimitives.Int32WithMeasure w
             Height = LanguagePrimitives.Int32WithMeasure h
-            OriginX = LanguagePrimitives.Int32WithMeasure x
-            OriginY = LanguagePrimitives.Int32WithMeasure y
         }
 
     let createPixelCanvas w h = 
-        createOffsetPixelCanvas w h 0 0
+        createOffsetPixelCanvas w h
+
+    let createCharCanvas (w: int) (h: int) =
+        createPixelCanvas (w * int pixelsPerBrailleX) (h * int pixelsPerBrailleY)
 
     let getMappedBrailleChar pixel =
         // Ignore the units here for the purposes of getting the mapped braille dot

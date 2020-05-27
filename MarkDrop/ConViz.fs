@@ -6,12 +6,12 @@
     open System
 
     type Convas = {
-        Width: int
-        Height: int
-        CanvasWidth: int
-        CanvasHeight: int
-        OriginalCursorY: int
-        CursorEndY: int
+        CharWidth: int
+        CharHeight: int
+        ZeroOrigin: Pixel
+        Origin: Pixel
+        MaxX: float
+        MaxY: float
     }
 
     type FrameState<'UserState> = {        
@@ -22,8 +22,8 @@
         UserState: 'UserState
     }
 
-    let updateConsole canvas =
-        Console.SetCursorPosition(int canvas.OriginX, int canvas.OriginY)
+    let updateConsole convas canvas =
+        Console.SetCursorPosition(int convas.ZeroOrigin.X, 0)
         canvas
             |> Drawille.toStrings
             |> Console.Out.Write
@@ -32,11 +32,11 @@
         Console.SetCursorPosition(charX, charY)
         Console.Write(value)
 
-    let updateConsoleDiff prevCanvas nextCanvasFactory = 
+    let updateConsoleDiff convas prevCanvas nextCanvasFactory = 
         let prevGrid = Array2D.copy prevCanvas.Grid
         let nextCanvas = nextCanvasFactory prevCanvas
-        let xOffset = int (prevCanvas.OriginX / pixelsPerBrailleX)
-        let yOffset = int (prevCanvas.OriginY / pixelsPerBrailleY)
+        let xOffset = int (convas.ZeroOrigin.X / pixelsPerBrailleX)
+        let yOffset = int (convas.ZeroOrigin.Y / pixelsPerBrailleY)
         Drawille.enumerate2 prevGrid nextCanvas.Grid (fun (charX, charY) oldValue newValue -> 
             if oldValue <> newValue then updateConsolePos (charX + xOffset) (charY + yOffset) (Drawille.brailleToString newValue)
         )
@@ -101,12 +101,12 @@
         let w = Console.WindowWidth - 1
         let h = Console.WindowHeight - 1
         {
-            Width = w
-            Height = h
-            CanvasWidth = w * 2
-            CanvasHeight = h * 4
-            OriginalCursorY = Console.CursorTop
-            CursorEndY = Console.CursorTop + h
+            CharWidth = w
+            CharHeight = h
+            ZeroOrigin = pixel 0 Console.CursorTop
+            Origin = pixel 0 0
+            MaxX = 0.
+            MaxY = 0.
         }
 
     let drawCanvas canvas =

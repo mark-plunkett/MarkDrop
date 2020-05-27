@@ -1,4 +1,5 @@
 ﻿open System
+open NAudio
 open ConViz
 (*
 Args
@@ -24,38 +25,16 @@ let drawwaveform fileName =
     let wavHeader = WavAudio.readHeader fileName false
     wavHeader |> WavAudio.printInfo fileName
 
-    Console.OutputEncoding <- Text.Encoding.UTF8
-    Console.CursorVisible <- false
-    let originalCursorTop = Console.CursorTop
-    let w = Console.WindowWidth
-    let h = Console.WindowHeight
-    let cursorEndY = originalCursorTop + (h / 2)
-    
-    let canvasWidth = (w * 2) - 2
-    let canvasHeight = (h * 2) - 8
-    let yPixelOffset = originalCursorTop * 4
-    let canvas = Drawille.createOffsetPixelCanvas canvasWidth canvasHeight 0 yPixelOffset
-    let convas = WaveformViz.convasFromCanvas canvas (pown (float 2) wavHeader.BitsPerSample)
-    let samplesPerChunk = WaveformViz.getChunkSize wavHeader canvas
-    
-    //let printMinMaxParallelMapped fileName =
-    //    WavAudio.parallelMapAllData fileName samplesPerChunk WaveformViz.minMaxValues2D
-    //    |> Seq.map (fun (x, (min, max)) -> WaveformViz.minMaxToPixels convas x min max)
-    //    |> Seq.fold WaveformViz.pointFolder canvas
-
-    //let printMinMaxParallel fileName =
-    //    WavAudio.parallelProcessAllData fileName samplesPerChunk
-    //    |> WaveformViz.drawWaveformSamples convas canvas
-
-    //printMinMaxParallel fileName
-    //|> ignore
+    let convas = ConViz.initialise
+    let canvas = Drawille.createPixelCanvas (convas.CharWidth * 2) (convas.CharHeight * 4)
+    let samplesPerChunk = WaveformViz.getChunkSize wavHeader canvas    
 
     WavAudio.parallelProcessAllData fileName samplesPerChunk
-    |> WaveformViz.drawMonoSum convas canvas
+    |> WaveformViz.drawMonoSumWaveform canvas (float Int16.MaxValue)
     |> Drawille.toStrings
     |> printfn "%s"
     
-    Console.CursorTop <- cursorEndY
+    ()
 
 type AnimationState = {
     SampleBytes: int[]
@@ -64,11 +43,11 @@ type AnimationState = {
 let animateRect viz =
 
     let convas = ConViz.initialise
-    let canvas = Drawille.createPixelCanvas convas.CanvasWidth convas.CanvasHeight
+    let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
 
     let rectAnimator canvas state =
         ConViz.rotateRect canvas state
-        |> ConViz.updateConsole
+        |> ConViz.updateConsole convas
         state.UserState
 
     let rectUserStateAggregator oldData newData =
@@ -97,20 +76,20 @@ let asyncFFT fileName =
             - return a new state, minus the processed data
     *)
 
+    let fftBlockSize = pown 2 12
     let convas = ConViz.initialise
-    let canvas = Drawille.createPixelCanvas convas.CanvasWidth convas.CanvasHeight
+    let canvas = Drawille.createCharCanvas convas.CharWidth (convas.CharHeight / 2)
 
     let wavHeader = WavAudio.readHeader fileName false
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
-    let fftBlockSize = pown 2 12
 
     let fftUserStateAggregator oldData newData =
         match newData with
         | Some data -> Array.append oldData data 
         | None -> oldData
 
-    let fftAnimator canvas frameState = 
+    let fftAnimator (canvas: Drawille.Canvas) frameState = 
 
         let rec processBlock sampleBytes =
 
@@ -143,9 +122,15 @@ let asyncFFT fileName =
                         | _ -> abs x
                     )
 
-                output
-                |> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (int canvas.Height - 1)
-                |> ConViz.updateConsole
+                // output
+                // //|> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (int canvas.Height - 10)
+                // |> WaveformViz.drawWaveformScaled convas (canvas |> Drawille.clear)
+                // |> ConViz.updateConsole convas
+
+                [0..int canvas.Height]
+                |> List.map (fun _ -> frameState.FrameCount % (int canvas.Height) |> float)
+                |> WaveformViz.drawWaveformScaled convas (canvas |> Drawille.clear)
+                |> ConViz.updateConsole convas
 
                 processBlock next
 
@@ -153,47 +138,43 @@ let asyncFFT fileName =
 
     let viz = Vizualizer((fftAnimator canvas), fftUserStateAggregator, Array.zeroCreate 0).Start
     
-    let avgBytesPerSecond = (wavHeader.SampleRate * wavHeader.BitsPerSample) / 8
-    let avgBytesPerMs = avgBytesPerSecond / 1000
-    let bufferSizeMs = 100
-    let bytesPerLoop = avgBytesPerMs * bufferSizeMs
-    let bytesPerLoopPadded = 
-        Seq.initInfinite (fun i -> pown 2 i)
-        |> Seq.takeWhile (fun i -> i / 2 < bytesPerLoop)
-        |> Seq.last
-    let mutable i = 0
-    let throttleResolution = 10
-    let avgBytesPerCheck = avgBytesPerSecond / throttleResolution
+    (*
+        Read file in chunks of s samples, prepare data in b buffers and feed into viz at a rate of latency ms 
 
-    let timer = System.Diagnostics.Stopwatch()
-    timer.Start()
+    *)
 
-    while i * bytesPerLoopPadded < Array.length wavData do
+    let latencyMs = 50
+    let numBuffers = 1
+    let numSamples = wavHeader.SampleRate / latencyMs
+    let numBytesRaw = (wavHeader.BitsPerSample * numSamples) / 8
+    let numBytes = numBytesRaw - (numBytesRaw % wavHeader.BlockAlign)
+    let dataLength = Array.length wavData
 
-        let readOffset = i * bytesPerLoopPadded
-        let byteCount = min bytesPerLoopPadded (Array.length wavData - readOffset)
-        let sampleBytes = Array.sub wavData readOffset byteCount
-        viz.Post <| sampleBytes
-        
-        let expectedBytes = timer.Elapsed.TotalMilliseconds * float bytesPerLoopPadded |> int
-        let diff = readOffset - expectedBytes
-        // if diff > 0 then
-        //     let sleepMs = diff / avgBytesPerMs
-        //     System.Diagnostics.Debug.WriteLine(sprintf "Sleeping for %i ms" sleepMs)
-        //     Threading.Thread.Sleep (sleepMs)
+    let rec queueSamples sampleOffset threadNumber = async {
 
-        Threading.Thread.Sleep (bufferSizeMs / 2)
+        let byteOffset = (sampleOffset * wavHeader.BitsPerSample) / 8
+        match byteOffset with
+        | x when x >= dataLength -> 
+            ()
+        | _ ->         
+            let readLength = 
+                match (byteOffset + numBytes) with
+                | o when o > dataLength -> o - dataLength
+                | _ -> numBytes
 
-        i <- i + 1
+            let sampleBytes = Array.sub wavData byteOffset readLength
+            viz.Post sampleBytes
+            do! Async.Sleep 10
+            return! queueSamples (sampleOffset + (threadNumber * numSamples)) threadNumber
+    }
+
+    [1..numBuffers]
+    |> List.mapi (fun i n -> queueSamples (i * numSamples) n)
+    |> Async.Parallel
+    |> Async.RunSynchronously
+    |> ignore
 
     ()
-
-    
-
-
-
-    
-
 
 [<EntryPoint>]
 let main argv =
@@ -211,9 +192,9 @@ let main argv =
 
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
     //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
-    let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
 
     if argv.[0] = "-w" then
 
