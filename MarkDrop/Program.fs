@@ -122,14 +122,8 @@ let asyncFFT fileName =
                         | _ -> abs x
                     )
 
-                // output
-                // //|> WaveformViz.drawWaveformYOffset (canvas |> Drawille.clear) (int canvas.Height - 10)
-                // |> WaveformViz.drawWaveformScaled convas (canvas |> Drawille.clear)
-                // |> ConViz.updateConsole convas
-
-                [0..int canvas.Height]
-                |> List.map (fun _ -> frameState.FrameCount % (int canvas.Height) |> float)
-                |> WaveformViz.drawWaveformScaled convas (canvas |> Drawille.clear)
+                output
+                |> WaveformViz.drawWaveformScaled (canvas |> Drawille.clear) 4000000.
                 |> ConViz.updateConsole convas
 
                 processBlock next
@@ -192,9 +186,10 @@ let main argv =
 
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
     //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
+    let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"
 
     if argv.[0] = "-w" then
 
