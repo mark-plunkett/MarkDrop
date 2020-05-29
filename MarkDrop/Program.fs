@@ -76,7 +76,6 @@ let asyncFFT fileName =
             - return a new state, minus the processed data
     *)
 
-    let fftBlockSize = pown 2 12
     let convas = ConViz.initialise
     let canvas = Drawille.createCharCanvas convas.CharWidth (convas.CharHeight / 2)
 
@@ -84,12 +83,21 @@ let asyncFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
+    let fftBlockSize = pown 2 12
+    let fftBlockSizeBytes = fftBlockSize * sampleInfo.BytesPerSample
+    let binBandwidth = float wavHeader.SampleRate / float fftBlockSize
+
     let fftUserStateAggregator oldData newData =
         match newData with
         | Some data -> Array.append oldData data 
         | None -> oldData
 
     let fftAnimator (canvas: Drawille.Canvas) frameState = 
+
+        let scaleX = (float canvas.Width / (float fftBlockSize / 4.)) |> WaveformViz.scale
+
+        let translateY value = int canvas.Height - 1 - value
+        let scaleY = float canvas.Height / 8000000. |> WaveformViz.scale
 
         let rec processBlock sampleBytes =
 
@@ -99,13 +107,13 @@ let asyncFFT fileName =
 
                 let (data, next) = 
                     match Array.length sampleBytes with
-                    | x when x < fftBlockSize -> (sampleBytes, [||])
-                    | _ -> Array.splitAt fftBlockSize sampleBytes
+                    | x when x < fftBlockSizeBytes -> (sampleBytes, [||])
+                    | _ -> Array.splitAt fftBlockSizeBytes sampleBytes
 
                 let bytes = 
                     match Array.length data with
-                    | x when x < fftBlockSize ->
-                        let zeroed = Array.zeroCreate fftBlockSize
+                    | x when x < fftBlockSizeBytes ->
+                        let zeroed = Array.zeroCreate fftBlockSizeBytes
                         Array.blit data 0 zeroed 0 (Array.length data)
                         zeroed
                     | _ -> data
@@ -116,14 +124,18 @@ let asyncFFT fileName =
                 // TODO: this is only using left channel atm
                 let output = 
                     FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray) 
-                    |> List.mapi (fun i x -> 
+                    |> List.mapi (fun i yVal -> 
                         match i with
                         | 0 -> 0.
-                        | _ -> abs x
+                        | _ -> abs yVal
                     )
 
                 output
-                |> WaveformViz.drawWaveformScaled (canvas |> Drawille.clear) 4000000.
+                |> List.mapi (fun i v -> 
+                    let xPos = i
+                    let yPos = int v |> scaleY |> translateY
+                    Drawille.pixel xPos yPos)
+                |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
                 |> ConViz.updateConsole convas
 
                 processBlock next
@@ -186,8 +198,8 @@ let main argv =
 
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
-    let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
+    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"
 
