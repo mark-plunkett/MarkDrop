@@ -36,7 +36,7 @@
     let translate offset value =
         offset + value
 
-    let scale scalingFactor value =
+    let inline scale scalingFactor value =
         (float value * scalingFactor) |> int
 
     let drawWaveformScaled canvas range values =

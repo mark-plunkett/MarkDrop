@@ -87,10 +87,11 @@ let asyncFFT fileName =
     let fftOutputRatio = 0.5 // We discard half the FFT output
     let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
     let binBandwidth = float wavHeader.SampleRate / float fftBlockSize
+    let yScalingFactor = (pown 2 21) |> float
 
     let scaleX = (float canvas.Width / (float fftBlockSize * fftOutputRatio)) |> WaveformViz.scale
     let translateY value = int canvas.Height - 1 - value
-    let scaleY = float canvas.Height / 2000000. |> WaveformViz.scale
+    let scaleY v = v * float canvas.Height
 
     let fftUserStateAggregator oldData newData =
         match newData with
@@ -110,22 +111,16 @@ let asyncFFT fileName =
         let rec processBlock sampleBytes =
 
             let (bytes, nextBytes) = chunkBytes sampleBytes
-
             let samples = WavAudio.bytesToSamples sampleInfo bytes
-
             // TODO: this is only using left channel atm
-            let output = 
-                FFT.fftList (samples.[0,*] |> Array.map float |> List.ofArray) 
-                |> List.mapi (fun i yVal -> 
-                    match i with
-                    | 0 -> 1.
-                    | _ -> abs yVal
-                )
-
-            output
+            FFT.fftList (
+                samples.[0,*] 
+                |> Array.map (fun v -> 
+                    float v / yScalingFactor)
+                |> List.ofArray) 
             |> List.mapi (fun i v -> 
-                let xPos = i |>  scaleX // (float fftBlockSize * (float i |> max 1. |> log10)) / (log10 (float fftBlockSize)) |> int |> scaleX
-                let yPos = int v |> scaleY |> translateY
+                let xPos = i |> scaleX // (float fftBlockSize * (float i |> max 1. |> log10)) / (log10 (float fftBlockSize)) |> int |> scaleX
+                let yPos = v |> abs |> scaleY |> int |> translateY
                 Drawille.pixel xPos yPos)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
             |> ConViz.updateConsole convas
