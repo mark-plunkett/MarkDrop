@@ -178,17 +178,6 @@ let asyncFFT fileName =
 
             let sampleBytes = Array.sub wavData byteOffset readLength
             viz.Post (Data sampleBytes)
-            // let now = DateTime.UtcNow
-            // let lastCheckedMs = (now - lastThrottled).TotalMilliseconds
-            // let nextCheck = 
-            //     if lastCheckedMs > latencyMs then
-            //         let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency
-            //         if msToWait > 0. then
-            //             do! Async.Sleep msToWait
-            //         now
-            //     else
-            //         lastThrottled
-
             let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency |> max 0.
             do! Async.Sleep (int msToWait)
 
