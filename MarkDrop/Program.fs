@@ -84,15 +84,18 @@ let asyncFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-    let fftBlockSize = pown 2 12
+    let fftBlockSize = pown 2 11
     let fftOutputRatio = 0.5 // We discard half the FFT output
     let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
     let binBandwidth = float wavHeader.SampleRate / float fftBlockSize
     let yScalingFactor = 0.5 * (pown 2. 16)
 
-    let scaleX = (float canvas.Width / (float fftBlockSize * fftOutputRatio)) |> WaveformViz.scale
+    let scaleX v = 
+        let v' = WaveformViz.scale (float canvas.Width / (float fftBlockSize * fftOutputRatio)) v
+        (float canvas.Width * log10 (max 1. v)) / (log10 <| (float sampleInfo.SampleRate / 2.))
+
     let translateY value = int canvas.Height - 1 - value
-    let scaleY v = (v / (float fftBlockSize / 8.)) * float canvas.Height
+    let scaleY v = (v / (float fftBlockSize / 16.)) * float canvas.Height
 
     let fftUserStateAggregator oldData newData =
         { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
@@ -124,10 +127,10 @@ let asyncFFT fileName =
             |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
             |> FFFT.fft 
             |> Array.take (float (Array2D.length2 samples) * fftOutputRatio |> int)
-            |> Array.map (fun c -> 
-                c.Real)    
+            |> Array.map (fun c -> c.Real)
             |> Array.mapi (fun i v -> 
-                let xPos = i |> scaleX
+                let i' = if i = 0 then float 1 else max 1 i |> float
+                let xPos = i' |> scaleX |> int
                 let yPos = v |> abs |> scaleY |> int |> translateY
                 Drawille.pixel xPos yPos)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
