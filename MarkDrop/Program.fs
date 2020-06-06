@@ -96,9 +96,6 @@ let asyncFFT fileName =
 
     let fftUserStateAggregator oldData newData =
         { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
-        // match newData with
-        // | Some data -> { oldData with SampleBytes = Array.append oldData.SampleBytes data }
-        // | None -> oldData
 
     let chunkBytes bytes =
         match Array.length bytes with
