@@ -37,33 +37,34 @@ let drawwaveform fileName =
     ()
 
 type AnimationState = {
-    SampleBytes: int[]
+    SampleBytes: byte[]
+    TotalBytesProcessed: int
 }
 
-let animateRect viz =
+// let animateRect viz =
 
-    let convas = ConViz.initialise
-    let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
+//     let convas = ConViz.initialise
+//     let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
 
-    let rectAnimator canvas state =
-        ConViz.rotateRect canvas state
-        |> ConViz.updateConsole convas
-        state.UserState
+//     let rectAnimator canvas state =
+//         ConViz.rotateRect canvas state
+//         |> ConViz.updateConsole convas
+//         state.UserState
 
-    let rectUserStateAggregator oldData newData =
-        match newData with
-        | Some data -> data
-        | None -> oldData
+//     let rectUserStateAggregator oldData newData =
+//         match newData with
+//         | Some data -> data
+//         | None -> oldData
 
-    let viz = Vizualizer<float>((rectAnimator canvas), rectUserStateAggregator, 1.).Start
+//     let viz = Vizualizer((rectAnimator canvas), rectUserStateAggregator, 1.).Start
 
-    let rec feed f =
+//     let rec feed f =
 
-        viz.Post f 
-        Threading.Thread.Sleep 500
-        feed <| f + 1.
+//         viz.Post f 
+//         Threading.Thread.Sleep 500
+//         feed <| f + 1.
 
-    feed 1. |> ignore
+//     feed 1. |> ignore
 
 let asyncFFT fileName =
 
@@ -94,9 +95,10 @@ let asyncFFT fileName =
     let scaleY v = (v / (float fftBlockSize / 8.)) * float canvas.Height
 
     let fftUserStateAggregator oldData newData =
-        match newData with
-        | Some data -> Array.append oldData data 
-        | None -> oldData
+        { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
+        // match newData with
+        // | Some data -> { oldData with SampleBytes = Array.append oldData.SampleBytes data }
+        // | None -> oldData
 
     let chunkBytes bytes =
         match Array.length bytes with
@@ -106,54 +108,63 @@ let asyncFFT fileName =
             (zeroed, [||])
         | _ ->  Array.splitAt fftBlockSizeBytes bytes
 
-    let sampleAggregator (samples: int[,]) =
+    let aggregateSamples (samples: int[,]) =
+        // TODO: this is only using left channel atm
         samples.[0,*]
 
-    let sampleNormalizer (samples: int[]) =
+    let normalizeSamples (samples: int[]) =
         samples |> Array.map (fun i -> float i / yScalingFactor)
 
-    let fftAnimator (canvas: Drawille.Canvas) frameState = 
+    let fftAnimator canvas frameState = 
 
-        let rec processBlock sampleBytes =
+        let rec processBlock animationState =
 
-            let (bytes, nextBytes) = chunkBytes sampleBytes
+            let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
             let samples = WavAudio.bytesToSamples sampleInfo bytes
-            // TODO: this is only using left channel atm
             samples
-            |> sampleAggregator
-            |> sampleNormalizer
+            |> aggregateSamples
+            |> normalizeSamples
             |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
             |> FFFT.fft 
-            |> Array.map (fun c -> c.Real)    
+            |> Array.take (float (Array2D.length2 samples) * fftOutputRatio |> int)
+            |> Array.map (fun c -> 
+                c.Real)    
             |> Array.mapi (fun i v -> 
-                let xPos = i |> scaleX // (float fftBlockSize * (float i |> max 1. |> log10)) / (log10 (float fftBlockSize)) |> int |> scaleX
+                let xPos = i |> scaleX
                 let yPos = v |> abs |> scaleY |> int |> translateY
                 Drawille.pixel xPos yPos)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
             |> ConViz.updateConsole convas
 
+            let userState' = { frameState.UserState with TotalBytesProcessed = frameState.UserState.TotalBytesProcessed + animationState.SampleBytes.Length }
             match nextBytes with
-            | [||] -> nextBytes
-            | _ -> processBlock nextBytes
+            | [||] -> { userState' with SampleBytes = [||] }
+            | _ -> processBlock { userState' with SampleBytes = nextBytes }
 
         processBlock frameState.UserState
 
-    let viz = Vizualizer((fftAnimator canvas), fftUserStateAggregator, Array.zeroCreate 0).Start
+    let initialUserState = {
+        SampleBytes = Array.zeroCreate 0
+        TotalBytesProcessed = 0
+    }
+    let viz = Vizualizer((fftAnimator canvas), fftUserStateAggregator, initialUserState).Start
     
-    (*
-        Read file in chunks of s samples, prepare data in b buffers and feed into viz at a rate of latency ms 
+    // Set up data stream, animation will handle throttling
 
-    *)
-
-    let latencyMs = 50
+    let latencyMs = 50.
     let numBuffers = 1
-    let numSamples = wavHeader.SampleRate / latencyMs
+    let numSamples = wavHeader.SampleRate / int latencyMs
     let numBytesRaw = (wavHeader.BitsPerSample * numSamples) / 8
     let numBytes = numBytesRaw - (numBytesRaw % wavHeader.BlockAlign)
     let dataLength = Array.length wavData
     let targetByteRate = sampleInfo.SampleRate * sampleInfo.BytesPerMultiChannelSample
 
-    let rec queueSamples sampleOffset threadNumber = async {
+    let calculateLatency frameState =
+        let expectedBytesPerMs = (float sampleInfo.SampleRate * float sampleInfo.BytesPerMultiChannelSample) / 1000.
+        let expectedBytesProcessed = float frameState.ElapsedMs * expectedBytesPerMs
+        (float frameState.UserState.TotalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
+        
+    let rec queueSamples sampleOffset threadNumber (lastThrottled: DateTime) = async {
 
         let byteOffset = (sampleOffset * wavHeader.BitsPerSample) / 8
         match byteOffset with
@@ -166,13 +177,26 @@ let asyncFFT fileName =
                 | _ -> numBytes
 
             let sampleBytes = Array.sub wavData byteOffset readLength
-            viz.Post sampleBytes
-            do! Async.Sleep 10
-            return! queueSamples (sampleOffset + (threadNumber * numSamples)) threadNumber
+            viz.Post (Data sampleBytes)
+            // let now = DateTime.UtcNow
+            // let lastCheckedMs = (now - lastThrottled).TotalMilliseconds
+            // let nextCheck = 
+            //     if lastCheckedMs > latencyMs then
+            //         let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency
+            //         if msToWait > 0. then
+            //             do! Async.Sleep msToWait
+            //         now
+            //     else
+            //         lastThrottled
+
+            let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency |> max 0.
+            do! Async.Sleep (int msToWait)
+
+            return! queueSamples (sampleOffset + (threadNumber * numSamples)) threadNumber lastThrottled
     }
 
     [1..numBuffers]
-    |> List.mapi (fun i n -> queueSamples (i * numSamples) n)
+    |> List.mapi (fun i n -> queueSamples (i * numSamples) n DateTime.UtcNow)
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore
@@ -199,6 +223,7 @@ let main argv =
     //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
     let fileName = @"C:\Dev\MarkDrop\Audio\JANICE - b - 1.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
 
     if argv.[0] = "-w" then
 

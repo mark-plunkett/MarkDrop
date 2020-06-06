@@ -18,9 +18,13 @@
         FrameCount: int
         FrameStartMs: int64
         FrameDurationMs: int64
-        TickCount: int64
+        ElapsedMs: int64
         UserState: 'UserState
     }
+
+    type VizMessage<'TUserState, 'TMessage> =
+    | Data of 'TMessage
+    | Reply of AsyncReplyChannel<FrameState<'TUserState>>
 
     let updateConsole convas canvas =
         Console.SetCursorPosition(int convas.ZeroOrigin.X, 0)
@@ -47,53 +51,55 @@
         let fps = if frameState.FrameDurationMs = 0L then 0L else 1000L / frameState.FrameDurationMs
         updateConsolePos 0 0 (sprintf "frame#: %i    ms/frame: %i    FPS: %i" frameState.FrameCount frameState.FrameDurationMs fps)
 
-    type Vizualizer<'TUserState> (animator, userStateAggregator, initialUserState) =
+    type Vizualizer<'TUserState, 'TMessage> (animator, userStateAggregator, initialUserState) =
 
-        let dataAgent msPerFrame animator initialUserState = 
+        let dataAgent animator initialUserState = 
 
             let initialFrameState: FrameState<'TUserState> = {
                 FrameCount = 1
                 FrameStartMs = 0L
                 FrameDurationMs = 0L
-                TickCount = 0L
+                ElapsedMs = 0L
                 UserState = initialUserState
             }
 
             let timer = System.Diagnostics.Stopwatch()
             timer.Start()
 
-            MailboxProcessor<'TUserState>.Start(fun inbox ->    
+            MailboxProcessor<VizMessage<'TUserState, 'TMessage>>.Start(fun inbox ->    
         
                 let rec loop currentFrameState = async {
-                    let! msg = inbox.TryReceive(msPerFrame)
+                    let! msg = inbox.Receive()
+                    match msg with
+                    | Reply replyChannel -> 
+                        replyChannel.Reply(currentFrameState)
+                        return! loop currentFrameState
+                    | Data data -> 
+                        let currentFrameState' = 
+                            { currentFrameState with 
+                                UserState = userStateAggregator currentFrameState.UserState data }
                     
-                    let currentFrameState' = 
-                        { currentFrameState with 
-                            UserState = userStateAggregator currentFrameState.UserState msg }
+                        let nextUserState = animator currentFrameState' 
                 
-                    let nextUserState = animator currentFrameState' 
-            
-                    let elapsedMs = timer.ElapsedMilliseconds
-                    let nextFrameState = { 
-                        currentFrameState' with 
-                            FrameCount = currentFrameState'.FrameCount + 1
-                            FrameStartMs = elapsedMs
-                            FrameDurationMs = elapsedMs - currentFrameState.FrameStartMs
-                            TickCount = elapsedMs
-                            UserState = nextUserState
-                    }
+                        let elapsedMs = timer.ElapsedMilliseconds
+                        let nextFrameState = { 
+                            currentFrameState' with 
+                                FrameCount = currentFrameState'.FrameCount + 1
+                                FrameStartMs = elapsedMs
+                                FrameDurationMs = elapsedMs - currentFrameState.FrameStartMs
+                                ElapsedMs = elapsedMs
+                                UserState = nextUserState
+                        }
 
-                    printDebugInfo nextFrameState
-
-                    return! loop nextFrameState
+                        printDebugInfo nextFrameState
+                        return! loop nextFrameState
                 }
 
                 loop initialFrameState
             )
 
         member _.Start = 
-            let msPerFrame = 1
-            dataAgent msPerFrame animator initialUserState
+            dataAgent animator initialUserState
 
     let initialise =
         Console.OutputEncoding <- Text.Encoding.UTF8
