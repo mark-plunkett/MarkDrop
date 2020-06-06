@@ -83,15 +83,15 @@ let asyncFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-    let fftBlockSize = pown 2 10
+    let fftBlockSize = pown 2 12
     let fftOutputRatio = 0.5 // We discard half the FFT output
     let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
     let binBandwidth = float wavHeader.SampleRate / float fftBlockSize
-    let yScalingFactor = (pown 2 21) |> float
+    let yScalingFactor = 0.5 * (pown 2. 16)
 
     let scaleX = (float canvas.Width / (float fftBlockSize * fftOutputRatio)) |> WaveformViz.scale
     let translateY value = int canvas.Height - 1 - value
-    let scaleY v = v * float canvas.Height
+    let scaleY v = (v / (float fftBlockSize / 8.)) * float canvas.Height
 
     let fftUserStateAggregator oldData newData =
         match newData with
@@ -106,6 +106,12 @@ let asyncFFT fileName =
             (zeroed, [||])
         | _ ->  Array.splitAt fftBlockSizeBytes bytes
 
+    let sampleAggregator (samples: int[,]) =
+        samples.[0,*]
+
+    let sampleNormalizer (samples: int[]) =
+        samples |> Array.map (fun i -> float i / yScalingFactor)
+
     let fftAnimator (canvas: Drawille.Canvas) frameState = 
 
         let rec processBlock sampleBytes =
@@ -113,12 +119,13 @@ let asyncFFT fileName =
             let (bytes, nextBytes) = chunkBytes sampleBytes
             let samples = WavAudio.bytesToSamples sampleInfo bytes
             // TODO: this is only using left channel atm
-            FFT.fftList (
-                samples.[0,*] 
-                |> Array.map (fun v -> 
-                    float v / yScalingFactor)
-                |> List.ofArray) 
-            |> List.mapi (fun i v -> 
+            samples
+            |> sampleAggregator
+            |> sampleNormalizer
+            |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
+            |> FFFT.fft 
+            |> Array.map (fun c -> c.Real)    
+            |> Array.mapi (fun i v -> 
                 let xPos = i |> scaleX // (float fftBlockSize * (float i |> max 1. |> log10)) / (log10 (float fftBlockSize)) |> int |> scaleX
                 let yPos = v |> abs |> scaleY |> int |> translateY
                 Drawille.pixel xPos yPos)
@@ -144,6 +151,7 @@ let asyncFFT fileName =
     let numBytesRaw = (wavHeader.BitsPerSample * numSamples) / 8
     let numBytes = numBytesRaw - (numBytesRaw % wavHeader.BlockAlign)
     let dataLength = Array.length wavData
+    let targetByteRate = sampleInfo.SampleRate * sampleInfo.BytesPerMultiChannelSample
 
     let rec queueSamples sampleOffset threadNumber = async {
 
@@ -187,9 +195,9 @@ let main argv =
 
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
     //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
-    //let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
+    let fileName = @"C:\Dev\MarkDrop\Audio\JANICE - b - 1.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"
 
     if argv.[0] = "-w" then
