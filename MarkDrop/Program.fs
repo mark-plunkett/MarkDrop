@@ -123,7 +123,7 @@ let asyncFFT fileName =
             let zeroed = Array.zeroCreate fftBlockSizeBytes
             Array.blit bytes 0 zeroed 0 length
             (zeroed, [||])
-        | _ ->  Array.splitAt fftBlockSizeBytes bytes
+        | _ -> Array.splitAt fftBlockSizeBytes bytes
 
     let aggregateSamples (samples: int[,]) =
         // TODO: this is only using left channel atm
@@ -133,7 +133,7 @@ let asyncFFT fileName =
         samples |> Array.map (fun i -> float i / yScalingFactor)
 
     let throttleFps frameState = 
-        let targetFps = 30.
+        let targetFps = 60.
         let elapsedSeconds = (float frameState.ElapsedMs / 1000.)
         let diff = float frameState.FrameCount - (targetFps * elapsedSeconds) |> int
         if diff > 0 then
@@ -141,11 +141,8 @@ let asyncFFT fileName =
 
     let fftAnimator canvas frameState = 
 
-        let rec processBlock animationState =
-
-            throttleFps frameState |> ignore
-
-            let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
+        let drawSpectrum bytes = 
+            
             let samples = WavAudio.bytesToSamples sampleInfo bytes
             samples
             |> aggregateSamples
@@ -156,17 +153,26 @@ let asyncFFT fileName =
             |> Array.skip 1
             |> Array.map (fun c -> c.Real)
             |> Array.mapi (fun i v -> 
-                let i' = max 1 i |> float
-                let xPos = i' |> scaleX
-                let yPos = v |> abs |> scaleY xPos |> int |> translateY
-                Drawille.pixel (int xPos) yPos)
+                let xPos = i |> float |> scaleX
+                let yTop = v |> abs |> scaleY xPos |> int |> translateY
+                Drawille.pixel (int xPos) yTop)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
             |> ConViz.updateConsole convas
 
-            let userState' = { frameState.UserState with TotalBytesProcessed = frameState.UserState.TotalBytesProcessed + animationState.SampleBytes.Length }
-            match nextBytes with
-            | [||] -> { userState' with SampleBytes = nextBytes }
-            | _ -> processBlock { userState' with SampleBytes = nextBytes }
+        let rec processBlock animationState =
+
+            throttleFps frameState |> ignore
+
+            match Array.length animationState.SampleBytes with
+            | length when length < fftBlockSizeBytes -> 
+                animationState
+            | _ ->
+                let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
+                drawSpectrum bytes |> ignore
+                let userState' = { frameState.UserState with TotalBytesProcessed = frameState.UserState.TotalBytesProcessed + animationState.SampleBytes.Length }
+                match nextBytes with
+                | [||] -> { userState' with SampleBytes = nextBytes }
+                | _ -> processBlock { userState' with SampleBytes = nextBytes }
 
         processBlock frameState.UserState
 
@@ -178,7 +184,7 @@ let asyncFFT fileName =
     
     // Set up data stream, animation will handle throttling
 
-    let latencyMs = 50.
+    let latencyMs = 30.
     let numBuffers = 1
     let numSamples = wavHeader.SampleRate / int latencyMs
     let numBytesRaw = (wavHeader.BitsPerSample * numSamples) / 8
@@ -190,7 +196,7 @@ let asyncFFT fileName =
         let expectedBytesProcessed = float frameState.ElapsedMs * expectedBytesPerMs
         (float frameState.UserState.TotalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
         
-    let rec queueSamples sampleOffset threadNumber (lastThrottled: DateTime) = async {
+    let rec queueSamples sampleOffset threadNumber = async {
 
         let byteOffset = (sampleOffset * wavHeader.BitsPerSample) / 8
         match byteOffset with
@@ -204,14 +210,14 @@ let asyncFFT fileName =
 
             let sampleBytes = Array.sub wavData byteOffset readLength
             viz.Post (Data sampleBytes)
-            let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency |> max 0.
-            do! Async.Sleep (int msToWait)
+            //let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency |> max 0.
+            do! Async.Sleep (int 5.) //(int msToWait)
 
-            return! queueSamples (sampleOffset + (threadNumber * numSamples)) threadNumber lastThrottled
+            return! queueSamples (sampleOffset + (threadNumber * numSamples)) threadNumber
     }
 
     [1..numBuffers]
-    |> List.mapi (fun i n -> queueSamples (i * numSamples) n DateTime.UtcNow)
+    |> List.mapi (fun i n -> queueSamples (i * numSamples) n)
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore
