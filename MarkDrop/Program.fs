@@ -39,6 +39,7 @@ let drawwaveform fileName =
 type AnimationState = {
     SampleBytes: byte[]
     TotalBytesProcessed: int
+    PreviousBytes: byte[] list
 }
 
 // let animateRect viz =
@@ -84,11 +85,12 @@ let asyncFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-    let fftBlockSize = pown 2 11
+    let p = 10
+    let fftBlockSize = pown 2 p
     let fftOutputRatio = 0.5 // We discard half the FFT output
     let fftOutputSize = float fftBlockSize * fftOutputRatio
     let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
-    let scalingCoefficient = pown 2. 16
+    let scalingCoefficient = pown 2. (int (1.6 * float p))
     let invScalingCoefficient = 1. / scalingCoefficient
     let yScalingFactor =  scalingCoefficient
     let slope = 5.
@@ -179,6 +181,7 @@ let asyncFFT fileName =
     let initialUserState = {
         SampleBytes = Array.zeroCreate 0
         TotalBytesProcessed = 0
+        PreviousBytes = []
     }
     let viz = Vizualizer((fftAnimator canvas), fftUserStateAggregator, initialUserState).Start
     
