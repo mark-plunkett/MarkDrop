@@ -91,8 +91,8 @@ let asyncFFT fileName =
     let scalingCoefficient = pown 2. 16
     let invScalingCoefficient = 1. / scalingCoefficient
     let yScalingFactor =  scalingCoefficient
-    let slope = 4.
-    let invSlope = 1. / (slope * float canvas.Width)
+    let slope = 4.5
+    let slopeScale = slope / float canvas.Width
 
     let logScale value =
         let divisor = log10 <| (float sampleInfo.SampleRate / 2.)
@@ -105,12 +105,13 @@ let asyncFFT fileName =
         |> float
 
     let translateY value = int canvas.Height - 1 - value
+
     let applySlope xPos value =
-        (max invSlope 1.) * xPos * value
+        value * xPos * slopeScale
 
     let scaleY xPos value = 
         value * float fftBlockSize * invScalingCoefficient * float canvas.Height
-        //|> applySlope xPos
+        |> applySlope xPos
 
     let fftUserStateAggregator oldData newData =
         { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
@@ -141,6 +142,8 @@ let asyncFFT fileName =
 
         let rec processBlock animationState =
 
+            throttleFps frameState |> ignore
+
             let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
             let samples = WavAudio.bytesToSamples sampleInfo bytes
             samples
@@ -149,16 +152,15 @@ let asyncFFT fileName =
             |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
             |> FFFT.fft 
             |> Array.take (float (Array2D.length2 samples) * fftOutputRatio |> int)
+            |> Array.skip 1
             |> Array.map (fun c -> c.Real)
             |> Array.mapi (fun i v -> 
-                let i' = if i = 0 then float 1 else max 1 i |> float
+                let i' = max 1 i |> float
                 let xPos = i' |> scaleX
                 let yPos = v |> abs |> scaleY xPos |> int |> translateY
                 Drawille.pixel (int xPos) yPos)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
             |> ConViz.updateConsole convas
-
-            throttleFps frameState |> ignore
 
             let userState' = { frameState.UserState with TotalBytesProcessed = frameState.UserState.TotalBytesProcessed + animationState.SampleBytes.Length }
             match nextBytes with
