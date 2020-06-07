@@ -86,16 +86,31 @@ let asyncFFT fileName =
 
     let fftBlockSize = pown 2 11
     let fftOutputRatio = 0.5 // We discard half the FFT output
+    let fftOutputSize = float fftBlockSize * fftOutputRatio
     let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
-    let binBandwidth = float wavHeader.SampleRate / float fftBlockSize
-    let yScalingFactor = 0.5 * (pown 2. 16)
+    let scalingCoefficient = pown 2. 16
+    let invScalingCoefficient = 1. / scalingCoefficient
+    let yScalingFactor =  scalingCoefficient
+    let slope = 4.
+    let invSlope = 1. / (slope * float canvas.Width)
 
-    let scaleX v = 
-        let v' = WaveformViz.scale (float canvas.Width / (float fftBlockSize * fftOutputRatio)) v
-        (float canvas.Width * log10 (max 1. v)) / (log10 <| (float sampleInfo.SampleRate / 2.))
+    let logScale value =
+        let divisor = log10 <| (float sampleInfo.SampleRate / 2.)
+        (fftOutputSize * log10 (max 1. value)) / divisor
+
+    let scaleX value = 
+        value
+        |> logScale
+        |> WaveformViz.scale (float canvas.Width / fftOutputSize) 
+        |> float
 
     let translateY value = int canvas.Height - 1 - value
-    let scaleY v = (v / (float fftBlockSize / 16.)) * float canvas.Height
+    let applySlope xPos value =
+        (max invSlope 1.) * xPos * value
+
+    let scaleY xPos value = 
+        value * float fftBlockSize * invScalingCoefficient * float canvas.Height
+        //|> applySlope xPos
 
     let fftUserStateAggregator oldData newData =
         { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
@@ -115,6 +130,13 @@ let asyncFFT fileName =
     let normalizeSamples (samples: int[]) =
         samples |> Array.map (fun i -> float i / yScalingFactor)
 
+    let throttleFps frameState = 
+        let targetFps = 30.
+        let elapsedSeconds = (float frameState.ElapsedMs / 1000.)
+        let diff = float frameState.FrameCount - (targetFps * elapsedSeconds) |> int
+        if diff > 0 then
+            Threading.Thread.Sleep(diff)
+
     let fftAnimator canvas frameState = 
 
         let rec processBlock animationState =
@@ -130,11 +152,13 @@ let asyncFFT fileName =
             |> Array.map (fun c -> c.Real)
             |> Array.mapi (fun i v -> 
                 let i' = if i = 0 then float 1 else max 1 i |> float
-                let xPos = i' |> scaleX |> int
-                let yPos = v |> abs |> scaleY |> int |> translateY
-                Drawille.pixel xPos yPos)
+                let xPos = i' |> scaleX
+                let yPos = v |> abs |> scaleY xPos |> int |> translateY
+                Drawille.pixel (int xPos) yPos)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
             |> ConViz.updateConsole convas
+
+            throttleFps frameState |> ignore
 
             let userState' = { frameState.UserState with TotalBytesProcessed = frameState.UserState.TotalBytesProcessed + animationState.SampleBytes.Length }
             match nextBytes with
