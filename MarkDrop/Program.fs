@@ -91,12 +91,13 @@ let asyncFFT fileName =
     let scalingCoefficient = pown 2. 16
     let invScalingCoefficient = 1. / scalingCoefficient
     let yScalingFactor =  scalingCoefficient
-    let slope = 4.5
+    let slope = 5.
     let slopeScale = slope / float canvas.Width
 
     let logScale value =
-        let divisor = log10 <| (float sampleInfo.SampleRate / 2.)
-        (fftOutputSize * log10 (max 1. value)) / divisor
+        let divisor = log10 <| (float fftOutputSize)
+        let o = (fftOutputSize * log10 (max 1. value)) / divisor
+        o
 
     let scaleX value = 
         value
@@ -164,7 +165,7 @@ let asyncFFT fileName =
 
             let userState' = { frameState.UserState with TotalBytesProcessed = frameState.UserState.TotalBytesProcessed + animationState.SampleBytes.Length }
             match nextBytes with
-            | [||] -> { userState' with SampleBytes = [||] }
+            | [||] -> { userState' with SampleBytes = nextBytes }
             | _ -> processBlock { userState' with SampleBytes = nextBytes }
 
         processBlock frameState.UserState
@@ -183,10 +184,9 @@ let asyncFFT fileName =
     let numBytesRaw = (wavHeader.BitsPerSample * numSamples) / 8
     let numBytes = numBytesRaw - (numBytesRaw % wavHeader.BlockAlign)
     let dataLength = Array.length wavData
-    let targetByteRate = sampleInfo.SampleRate * sampleInfo.BytesPerMultiChannelSample
+    let expectedBytesPerMs = (float sampleInfo.SampleRate * float sampleInfo.BytesPerMultiChannelSample) / 1000.
 
     let calculateLatency frameState =
-        let expectedBytesPerMs = (float sampleInfo.SampleRate * float sampleInfo.BytesPerMultiChannelSample) / 1000.
         let expectedBytesProcessed = float frameState.ElapsedMs * expectedBytesPerMs
         (float frameState.UserState.TotalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
         
