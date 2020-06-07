@@ -39,7 +39,7 @@ let drawwaveform fileName =
 type AnimationState = {
     SampleBytes: byte[]
     TotalBytesProcessed: int
-    PreviousBytes: byte[] list
+    PreviousSamples: float list list
 }
 
 // let animateRect viz =
@@ -85,16 +85,17 @@ let asyncFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-    let p = 10
+    let p = 11
     let fftBlockSize = pown 2 p
     let fftOutputRatio = 0.5 // We discard half the FFT output
     let fftOutputSize = float fftBlockSize * fftOutputRatio
     let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
-    let scalingCoefficient = pown 2. (int (1.6 * float p))
+    let scalingCoefficient = 8. * pown 2. 16
     let invScalingCoefficient = 1. / scalingCoefficient
-    let yScalingFactor =  scalingCoefficient
+    let yScalingFactor = 0.5 * pown 2. 16
     let slope = 5.
     let slopeScale = slope / float canvas.Width
+    let smoothing = 2
 
     let logScale value =
         let divisor = log10 <| (float fftOutputSize)
@@ -143,15 +144,11 @@ let asyncFFT fileName =
 
     let fftAnimator canvas frameState = 
 
-        let drawSpectrum bytes = 
-            
-            let samples = WavAudio.bytesToSamples sampleInfo bytes
+        let drawSpectrum samples = 
             samples
-            |> aggregateSamples
-            |> normalizeSamples
             |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
             |> FFFT.fft 
-            |> Array.take (float (Array2D.length2 samples) * fftOutputRatio |> int)
+            |> Array.take (float (Array.length samples) * fftOutputRatio |> int)
             |> Array.skip 1
             |> Array.map (fun c -> c.Real)
             |> Array.mapi (fun i v -> 
@@ -160,6 +157,16 @@ let asyncFFT fileName =
                 Drawille.pixel (int xPos) yTop)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
             |> ConViz.updateConsole convas
+
+        let storeSamples previousSamples samples =
+            match List.length previousSamples with
+            | length when length = smoothing -> samples :: previousSamples.Tail
+            | _ -> samples :: previousSamples
+
+        let smooth previousSamples samples = 
+            samples :: previousSamples
+            |> List.transpose
+            |> List.map List.average
 
         let rec processBlock animationState =
 
@@ -170,18 +177,34 @@ let asyncFFT fileName =
                 animationState
             | _ ->
                 let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
-                drawSpectrum bytes |> ignore
-                let userState' = { frameState.UserState with TotalBytesProcessed = frameState.UserState.TotalBytesProcessed + animationState.SampleBytes.Length }
+                let samples = 
+                    WavAudio.bytesToSamples sampleInfo bytes
+                    |> aggregateSamples
+                    |> normalizeSamples
+
+                samples
+                |> Array.toList
+                |> smooth animationState.PreviousSamples
+                |> Array.ofList
+                |> drawSpectrum 
+                |> ignore
+
+                let userState' = { 
+                    animationState with 
+                        TotalBytesProcessed = animationState.TotalBytesProcessed + animationState.SampleBytes.Length
+                        SampleBytes = nextBytes
+                        PreviousSamples = storeSamples animationState.PreviousSamples <| List.ofArray samples
+                }
                 match nextBytes with
-                | [||] -> { userState' with SampleBytes = nextBytes }
-                | _ -> processBlock { userState' with SampleBytes = nextBytes }
+                | [||] -> userState'
+                | _ -> processBlock userState'
 
         processBlock frameState.UserState
 
     let initialUserState = {
         SampleBytes = Array.zeroCreate 0
         TotalBytesProcessed = 0
-        PreviousBytes = []
+        PreviousSamples = []
     }
     let viz = Vizualizer((fftAnimator canvas), fftUserStateAggregator, initialUserState).Start
     
