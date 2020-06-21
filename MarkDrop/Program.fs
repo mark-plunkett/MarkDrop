@@ -85,22 +85,22 @@ let asyncFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-    let p = 12
+    let p = 11
     let fftBlockSize = pown 2 p
     let fftOutputRatio = 0.5 // We discard half the FFT output
-    let fftPaddedSize = pown 2 14
-    let fftOutputSize = fftOutputRatio * (float fftPaddedSize) //float fftBlockSize * fftOutputRatio
+    let fftPaddedSize = pown 2 13
+    let fftOutputSize = fftOutputRatio * float fftPaddedSize //float fftBlockSize * fftOutputRatio
     let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
     let yScalingFactor = 2.
     let sampleScalingFactor = 0.5 * pown 2. 16
     let slope = 4.
     let slopeScale = slope / float canvas.Width
-    let smoothing = 3
-    let skip = 1
+    let smoothing = 2
+    let skip = 2
 
     let logScale value =
 
-        let logF = Math.Log10
+        let logF = Math.Log
         let divisor = logF <| (float fftOutputSize)
         let o = (fftOutputSize * logF (max 1. value)) / divisor
         o
@@ -158,13 +158,13 @@ let asyncFFT fileName =
             |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
             |> FFFT.fft 
             |> Array.take (fftOutputSize |> int)
-            //|> Array.skip skip
+            |> Array.skip 20
             |> Array.map (fun c -> sqrt(c.Real**2. + c.Imaginary**2.))
             |> Array.mapi (fun i v -> 
-                let i' = if i < skip then 1 else i
-                let xPos = i' |> float |> scaleX
-                let yPos = v |> abs |> scaleY xPos |> int |> translateY
-                Drawille.pixel (int xPos) yPos)
+                let i' = i - skip
+                let xPos = i' |> float |> scaleX |> int
+                let yPos = v |> abs |> scaleY <| float xPos |> int |> translateY
+                Drawille.pixel xPos yPos)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
             |> ConViz.updateConsole convas
 
