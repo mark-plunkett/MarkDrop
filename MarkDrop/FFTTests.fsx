@@ -4,7 +4,7 @@
 #load "FFFT.fs"
 #load "WavAudio.fs"
 
-let fftSampleCount = 2048
+let fftSampleCount = pown 2 11
 
 let toSineWave frequency amplitude t =
     (amplitude * sin(2. * System.Math.PI * frequency * t))
@@ -20,9 +20,10 @@ let toSineWave frequency amplitude t =
 //     |> List.toArray 
 //     |> FFFT.fft
 
+let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
 //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
 //let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
-let fileName = @"C:\Dev\MarkDrop\Audio\JANICE - b - 1.wav"
+//let fileName = @"C:\Dev\MarkDrop\Audio\JANICE - b - 1.wav"
 let wavHeader = WavAudio.readHeader fileName false
 let wavData = WavAudio.readData fileName wavHeader
 let sampleInfo = WavAudio.getSampleInfo wavHeader
@@ -53,7 +54,8 @@ let maxFFFT data =
         samples
         |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
         |> FFFT.fft 
-        |> Array.map (fun c -> c.Real)
+        |> Array.map (fun c -> sqrt(c.Real**2. + c.Imaginary**2.))
+
         |> Array.max)
     |> Array.max
 

@@ -88,18 +88,19 @@ let asyncFFT fileName =
     let p = 12
     let fftBlockSize = pown 2 p
     let fftOutputRatio = 0.5 // We discard half the FFT output
-    let fftOutputSize = float fftBlockSize * fftOutputRatio
+    let fftPaddedSize = pown 2 14
+    let fftOutputSize = fftOutputRatio * (float fftPaddedSize) //float fftBlockSize * fftOutputRatio
     let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
-    let scalingCoefficient = 8. * pown 2. 16
-    let invScalingCoefficient = 1. / scalingCoefficient
-    let yScalingFactor = 0.5 * pown 2. 16
+    let yScalingFactor = 2.
+    let sampleScalingFactor = 0.5 * pown 2. 16
     let slope = 4.
     let slopeScale = slope / float canvas.Width
     let smoothing = 3
+    let skip = 1
 
     let logScale value =
 
-        let logF = Math.Log2
+        let logF = Math.Log10
         let divisor = logF <| (float fftOutputSize)
         let o = (fftOutputSize * logF (max 1. value)) / divisor
         o
@@ -115,13 +116,9 @@ let asyncFFT fileName =
     let applySlope xPos value =
         value * xPos * slopeScale
 
-    let scaleYLog xPos value = 
-        value * float fftBlockSize * invScalingCoefficient * float canvas.Height
-        |> applySlope xPos
-
     let scaleY xPos value = 
         //(value / float fftOutputSize ) * float canvas.Height
-        value * float canvas.Height / 128.
+        value * yScalingFactor
         |> applySlope xPos
 
     let fftUserStateAggregator oldData newData =
@@ -145,7 +142,7 @@ let asyncFFT fileName =
         samples.[0,*]
 
     let normalizeSamples (samples: int[]) =
-        samples |> Array.map (fun i -> float i / yScalingFactor)
+        samples |> Array.map (fun i -> float i / sampleScalingFactor)
 
     let throttleFps frameState = 
         let targetFps = 60.
@@ -160,13 +157,14 @@ let asyncFFT fileName =
             samples
             |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
             |> FFFT.fft 
-            |> Array.take (float (Array.length samples) * fftOutputRatio |> int)
-            |> Array.skip 1
-            |> Array.map (fun c -> c.Real)
+            |> Array.take (fftOutputSize |> int)
+            //|> Array.skip skip
+            |> Array.map (fun c -> sqrt(c.Real**2. + c.Imaginary**2.))
             |> Array.mapi (fun i v -> 
-                let xPos = i |> float |> scaleX
-                let yTop = v |> abs |> scaleY xPos |> int |> translateY
-                Drawille.pixel (int xPos) yTop)
+                let i' = if i < skip then 1 else i
+                let xPos = i' |> float |> scaleX
+                let yPos = v |> abs |> scaleY xPos |> int |> translateY
+                Drawille.pixel (int xPos) yPos)
             |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
             |> ConViz.updateConsole convas
 
@@ -196,12 +194,11 @@ let asyncFFT fileName =
             // | length when length < fftBlockSizeBytes -> 
             //     animationState
             // | _ ->
-            let (bytes, nextBytes) = 
-                chunkBytes animationState.SampleBytes
+            let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
             let samples = 
                 WavAudio.bytesToSamples sampleInfo bytes
                 |> aggregateSamples
-                |> pad (pown 2 13)
+                |> pad fftPaddedSize
                 |> normalizeSamples
 
             samples
