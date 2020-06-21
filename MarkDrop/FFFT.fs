@@ -6,7 +6,7 @@ module FFFT
   open System
   open System.Numerics
 
-  let maxSize       = 4096
+  let maxSize       = (pown 2 16) //4096
   let pi            = Math.PI
   let tau           = 2.*pi
 

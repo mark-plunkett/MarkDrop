@@ -95,7 +95,7 @@ let asyncFFT fileName =
     let yScalingFactor = 0.5 * pown 2. 16
     let slope = 4.
     let slopeScale = slope / float canvas.Width
-    let smoothing = 1
+    let smoothing = 3
 
     let logScale value =
 
@@ -120,7 +120,8 @@ let asyncFFT fileName =
         |> applySlope xPos
 
     let scaleY xPos value = 
-        value * float fftBlockSize / (float canvas.Height * 16.)
+        //(value / float fftOutputSize ) * float canvas.Height
+        value * float canvas.Height / 128.
         |> applySlope xPos
 
     let fftUserStateAggregator oldData newData =
@@ -133,6 +134,11 @@ let asyncFFT fileName =
             Array.blit bytes 0 zeroed 0 length
             (zeroed, [||])
         | _ -> Array.splitAt fftBlockSizeBytes bytes
+
+    let pad size array =
+        let zeroed = Array.zeroCreate size
+        Array.blit array 0 zeroed 0 (Array.length array)
+        zeroed
 
     let aggregateSamples (samples: int[,]) =
         // TODO: this is only using left channel atm
@@ -155,7 +161,7 @@ let asyncFFT fileName =
             |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
             |> FFFT.fft 
             |> Array.take (float (Array.length samples) * fftOutputRatio |> int)
-            |> Array.skip 2
+            |> Array.skip 1
             |> Array.map (fun c -> c.Real)
             |> Array.mapi (fun i v -> 
                 let xPos = i |> float |> scaleX
@@ -165,15 +171,20 @@ let asyncFFT fileName =
             |> ConViz.updateConsole convas
 
         let storeSamples previousSamples samples =
-            match List.length previousSamples with
-            | length when length = smoothing -> samples :: previousSamples.Tail
-            | _ -> samples :: previousSamples
+            if smoothing = 0 then
+                []
+            else
+                match List.length previousSamples with
+                | length when length = smoothing -> samples :: previousSamples.Tail
+                | _ -> samples :: previousSamples
 
         let smooth previousSamples samples = 
 
-            let weight i s = s * (1. - (1. / (float smoothing * float i + 1.)))
+            let weight i s = 
+                //s * (1. - (1. / (float smoothing * float i + 1.)))
+                s
 
-            samples :: (previousSamples |> List.mapi (fun i prev -> prev |> List.map (weight i)))
+            samples :: previousSamples
             |> List.transpose
             |> List.map List.average
 
@@ -185,10 +196,12 @@ let asyncFFT fileName =
             // | length when length < fftBlockSizeBytes -> 
             //     animationState
             // | _ ->
-            let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
+            let (bytes, nextBytes) = 
+                chunkBytes animationState.SampleBytes
             let samples = 
                 WavAudio.bytesToSamples sampleInfo bytes
                 |> aggregateSamples
+                |> pad (pown 2 13)
                 |> normalizeSamples
 
             samples
@@ -275,9 +288,9 @@ let main argv =
 
 
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
     //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
-    let fileName = @"C:\Dev\MarkDrop\Audio\JANICE - b - 1.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\JANICE - b - 1.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\kicks-sparse.wav"
 
