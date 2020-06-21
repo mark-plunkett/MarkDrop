@@ -85,7 +85,7 @@ let asyncFFT fileName =
     let wavData = WavAudio.readData fileName wavHeader
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-    let p = 11
+    let p = 12
     let fftBlockSize = pown 2 p
     let fftOutputRatio = 0.5 // We discard half the FFT output
     let fftOutputSize = float fftBlockSize * fftOutputRatio
@@ -93,13 +93,15 @@ let asyncFFT fileName =
     let scalingCoefficient = 8. * pown 2. 16
     let invScalingCoefficient = 1. / scalingCoefficient
     let yScalingFactor = 0.5 * pown 2. 16
-    let slope = 5.
+    let slope = 4.
     let slopeScale = slope / float canvas.Width
-    let smoothing = 2
+    let smoothing = 1
 
     let logScale value =
-        let divisor = log10 <| (float fftOutputSize)
-        let o = (fftOutputSize * log10 (max 1. value)) / divisor
+
+        let logF = Math.Log2
+        let divisor = logF <| (float fftOutputSize)
+        let o = (fftOutputSize * logF (max 1. value)) / divisor
         o
 
     let scaleX value = 
@@ -113,8 +115,12 @@ let asyncFFT fileName =
     let applySlope xPos value =
         value * xPos * slopeScale
 
-    let scaleY xPos value = 
+    let scaleYLog xPos value = 
         value * float fftBlockSize * invScalingCoefficient * float canvas.Height
+        |> applySlope xPos
+
+    let scaleY xPos value = 
+        value * float fftBlockSize / (float canvas.Height * 16.)
         |> applySlope xPos
 
     let fftUserStateAggregator oldData newData =
@@ -149,7 +155,7 @@ let asyncFFT fileName =
             |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
             |> FFFT.fft 
             |> Array.take (float (Array.length samples) * fftOutputRatio |> int)
-            |> Array.skip 1
+            |> Array.skip 2
             |> Array.map (fun c -> c.Real)
             |> Array.mapi (fun i v -> 
                 let xPos = i |> float |> scaleX
@@ -164,7 +170,10 @@ let asyncFFT fileName =
             | _ -> samples :: previousSamples
 
         let smooth previousSamples samples = 
-            samples :: previousSamples
+
+            let weight i s = s * (1. - (1. / (float smoothing * float i + 1.)))
+
+            samples :: (previousSamples |> List.mapi (fun i prev -> prev |> List.map (weight i)))
             |> List.transpose
             |> List.map List.average
 
@@ -172,32 +181,32 @@ let asyncFFT fileName =
 
             throttleFps frameState |> ignore
 
-            match Array.length animationState.SampleBytes with
-            | length when length < fftBlockSizeBytes -> 
-                animationState
-            | _ ->
-                let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
-                let samples = 
-                    WavAudio.bytesToSamples sampleInfo bytes
-                    |> aggregateSamples
-                    |> normalizeSamples
+            // match Array.length animationState.SampleBytes with
+            // | length when length < fftBlockSizeBytes -> 
+            //     animationState
+            // | _ ->
+            let (bytes, nextBytes) = chunkBytes animationState.SampleBytes
+            let samples = 
+                WavAudio.bytesToSamples sampleInfo bytes
+                |> aggregateSamples
+                |> normalizeSamples
 
-                samples
-                |> Array.toList
-                |> smooth animationState.PreviousSamples
-                |> Array.ofList
-                |> drawSpectrum 
-                |> ignore
+            samples
+            |> Array.toList
+            |> smooth animationState.PreviousSamples
+            |> Array.ofList
+            |> drawSpectrum 
+            |> ignore
 
-                let userState' = { 
-                    animationState with 
-                        TotalBytesProcessed = animationState.TotalBytesProcessed + animationState.SampleBytes.Length
-                        SampleBytes = nextBytes
-                        PreviousSamples = storeSamples animationState.PreviousSamples <| List.ofArray samples
-                }
-                match nextBytes with
-                | [||] -> userState'
-                | _ -> processBlock userState'
+            let userState' = { 
+                animationState with 
+                    TotalBytesProcessed = animationState.TotalBytesProcessed + animationState.SampleBytes.Length
+                    SampleBytes = nextBytes
+                    PreviousSamples = storeSamples animationState.PreviousSamples <| List.ofArray samples
+            }
+            match nextBytes with
+            | [||] -> userState'
+            | _ -> processBlock userState'
 
         processBlock frameState.UserState
 
@@ -236,8 +245,8 @@ let asyncFFT fileName =
 
             let sampleBytes = Array.sub wavData byteOffset readLength
             viz.Post (Data sampleBytes)
-            //let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency |> max 0.
-            do! Async.Sleep (int 5.) //(int msToWait)
+            let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency |> max 0. |> int
+            do! Async.Sleep msToWait
 
             return! queueSamples (sampleOffset + (threadNumber * numSamples)) threadNumber
     }
