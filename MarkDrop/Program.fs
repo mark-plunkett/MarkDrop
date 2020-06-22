@@ -39,7 +39,7 @@ let drawwaveform fileName =
 type AnimationState = {
     SampleBytes: byte[]
     TotalBytesProcessed: int
-    PreviousSamples: float list list
+    PreviousSamples: float[][]
 }
 
 // let animateRect viz =
@@ -95,7 +95,7 @@ let asyncFFT fileName =
     let sampleScalingFactor = 0.5 * pown 2. 16
     let slope = 4.
     let slopeScale = slope / float canvas.Width
-    let smoothing = 2
+    let smoothing = 3
     let skip = 2
 
     let logScale value =
@@ -145,7 +145,7 @@ let asyncFFT fileName =
         samples |> Array.map (fun i -> float i / sampleScalingFactor)
 
     let throttleFps frameState = 
-        let targetFps = 60.
+        let targetFps = 600.
         let elapsedSeconds = (float frameState.ElapsedMs / 1000.)
         let diff = float frameState.FrameCount - (targetFps * elapsedSeconds) |> int
         if diff > 0 then
@@ -170,21 +170,18 @@ let asyncFFT fileName =
 
         let storeSamples previousSamples samples =
             if smoothing = 0 then
-                []
+                [||]
             else
-                match List.length previousSamples with
-                | length when length = smoothing -> samples :: previousSamples.Tail
-                | _ -> samples :: previousSamples
+                match Array.length previousSamples with
+                | length when length = smoothing -> Array.append (Array.tail previousSamples) [|samples|]
+                | _ -> Array.append previousSamples [|samples|]
 
         let smooth previousSamples samples = 
 
-            let weight i s = 
-                //s * (1. - (1. / (float smoothing * float i + 1.)))
-                s
-
-            samples :: previousSamples
-            |> List.transpose
-            |> List.map List.average
+            previousSamples
+            |> Array.append [|samples|]
+            |> Array.transpose
+            |> Array.map Array.average
 
         let rec processBlock animationState =
 
@@ -202,9 +199,7 @@ let asyncFFT fileName =
                 |> normalizeSamples
 
             samples
-            |> Array.toList
             |> smooth animationState.PreviousSamples
-            |> Array.ofList
             |> drawSpectrum 
             |> ignore
 
@@ -212,7 +207,7 @@ let asyncFFT fileName =
                 animationState with 
                     TotalBytesProcessed = animationState.TotalBytesProcessed + animationState.SampleBytes.Length
                     SampleBytes = nextBytes
-                    PreviousSamples = storeSamples animationState.PreviousSamples <| List.ofArray samples
+                    PreviousSamples = storeSamples animationState.PreviousSamples samples
             }
             match nextBytes with
             | [||] -> userState'
@@ -223,7 +218,7 @@ let asyncFFT fileName =
     let initialUserState = {
         SampleBytes = Array.zeroCreate 0
         TotalBytesProcessed = 0
-        PreviousSamples = []
+        PreviousSamples = Array.empty
     }
     let viz = Vizualizer((fftAnimator canvas), fftUserStateAggregator, initialUserState).Start
     
