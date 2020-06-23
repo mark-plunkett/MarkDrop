@@ -49,7 +49,7 @@
 
     let printDebugInfo frameState =
         let fps = if frameState.FrameDurationMs = 0L then 0L else 1000L / frameState.FrameDurationMs
-        updateConsolePos 0 0 (sprintf "frame#: %i    ms/frame: %i    FPS: %i" frameState.FrameCount frameState.FrameDurationMs fps)
+        updateConsolePos 0 0 (sprintf "frame#: %6i    ms/frame: %3i    FPS: %3i" frameState.FrameCount frameState.FrameDurationMs fps)
 
     type Vizualizer<'TUserState, 'TMessage> (animator, userStateAggregator, initialUserState) =
 

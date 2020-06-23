@@ -99,3 +99,11 @@ module FFFT
     let struct (_, t) = Details.loop (n >>> 1) ln 1 n vs0 vs1
 
     t
+
+  let fftR2R vs =
+    vs
+    |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
+    |> fft
+
+  let magnitude (c: Complex) =
+    sqrt(c.Real**2. + c.Imaginary**2.)
