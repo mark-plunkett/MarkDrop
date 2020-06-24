@@ -15,7 +15,7 @@
     <Compile Include="Drawille.fs" />
     <Compile Include="ConViz.fs" />
     <Compile Include="WaveformViz.fs" />
-    <Compile Include="EQViz.fs" />
+    <Compile Include="Animation.fs" />
     <Compile Include="Program.fs" />
     <None Include="Tests.fsx" />
     <None Include="SineTests.fsx" />

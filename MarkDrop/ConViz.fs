@@ -26,6 +26,12 @@
     | Data of 'TMessage
     | Reply of AsyncReplyChannel<FrameState<'TUserState>>
 
+    type AnimationState = {
+        SampleBytes: byte[]
+        TotalBytesProcessed: int
+        PreviousSamples: float[][]
+    }
+
     let updateConsole convas canvas =
         Console.SetCursorPosition(int convas.ZeroOrigin.X, 0)
         canvas
