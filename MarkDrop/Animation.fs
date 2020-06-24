@@ -5,15 +5,6 @@ module Animation
 
     let spectrum fileName =
 
-        (*
-            Setup async animation loop that processes data according to the sample rate of the source.
-            Data will be provided in chunks of some size which is a multiple of BlockAlign (usually 4)
-        
-            Data should be concat'ed and provided to a processor, which can
-                - optionally choose to process the data when enough data is available
-                - return a new state, minus the processed data
-        *)
-
         let convas = ConViz.initialise
         let canvas = Drawille.createCharCanvas convas.CharWidth (convas.CharHeight / 2)
 
