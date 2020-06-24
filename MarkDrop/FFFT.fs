@@ -100,10 +100,11 @@ module FFFT
 
     t
 
-  let fftR2R vs =
+  let magnitude (c: Complex) =
+    sqrt(c.Real**2. + c.Imaginary**2.)
+
+  let fftF2F vs =
     vs
     |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
     |> fft
-
-  let magnitude (c: Complex) =
-    sqrt(c.Real**2. + c.Imaginary**2.)
+    |> Array.map magnitude

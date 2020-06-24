@@ -132,10 +132,9 @@ let asyncFFT fileName =
 
         let drawSpectrum samples = 
             samples
-            |> FFFT.fftR2R
+            |> FFFT.fftF2F
             |> Array.take (int fftOutputSize)
             |> Array.skip 20
-            |> Array.map FFFT.magnitude
             |> Array.mapi (fun i v -> 
                 let i' = i - skip
                 let xPos = i' |> float |> scaleX |> int
