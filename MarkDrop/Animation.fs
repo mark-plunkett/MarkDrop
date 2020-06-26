@@ -3,6 +3,92 @@ module Animation
     open ConViz
     open System
 
+    let storeSamples smoothing previousSamples samples =
+        if smoothing = 0 then
+            [||]
+        else
+            match Array.length previousSamples with
+            | length when length = smoothing -> Array.append (Array.tail previousSamples) [|samples|]
+            | _ -> Array.append previousSamples [|samples|]
+
+    let throttleFps frameState = 
+        let targetFps = 60.
+        let elapsedSeconds = (float frameState.ElapsedMs / 1000.)
+        let diff = float frameState.FrameCount - (targetFps * elapsedSeconds) |> int
+        if diff > 0 then
+            Threading.Thread.Sleep(diff)
+
+    let phase fileName =
+
+        let convas = ConViz.initialise
+        let canvas = Drawille.createCharCanvas convas.CharWidth (convas.CharHeight / 2)
+
+        let wavHeader = WavAudio.readHeader fileName false
+        let sampleInfo = WavAudio.getSampleInfo wavHeader
+
+        let p = 9
+        let blockSize = pown 2 9
+        let blockSizeBytes = blockSize * wavHeader.BlockAlign
+        let sampleMax = pown 2. 16
+        let ampScalingFactor = float canvas.Height / sampleMax
+        let origin = Drawille.pixel (int canvas.Width / 2) 0
+
+        let stateAggregator oldData newData =
+            { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
+
+        let translateX value =
+            value + float origin.X
+
+        let translateY value = 
+            float canvas.Height - 1. - value
+
+        let draw (samples : int[,]) =
+
+            [0..Array2D.length2 samples - 1]
+            |> List.map (fun i -> 
+                let l = samples.[*,i].[0]
+                let r = samples.[*,i].[1]
+                let lAbs = l |> abs |> float
+                let rAbs = r |> abs |> float
+                let amplitude = ((lAbs + rAbs) / 2.) * ampScalingFactor
+                let angle =  (lAbs - rAbs) / Math.PI
+                let x = amplitude * sin angle 
+                let xPos = x |> translateX |> int
+                let y = amplitude * cos angle 
+                let yPos = y |> translateY |> int
+                Drawille.pixel xPos yPos)
+            |> Util.flip Drawille.drawPoints (canvas |> Drawille.clear)
+            |> ConViz.updateConsole convas
+
+        let phaseAnimator canvas frameState = 
+
+            let rec processBlock animationState =
+
+                let (bytes, nextBytes) = Util.chunkBytes blockSizeBytes animationState.SampleBytes
+                WavAudio.bytesToSamples sampleInfo bytes
+                |> draw
+
+                let userState' = { 
+                    animationState with 
+                        TotalBytesProcessed = animationState.TotalBytesProcessed + animationState.SampleBytes.Length
+                        SampleBytes = nextBytes
+                        //PreviousSamples = storeSamples animationState.PreviousSamples samples
+                }
+                
+                match nextBytes with
+                | [||] -> userState'
+                | _ -> processBlock userState'
+
+            processBlock frameState.UserState
+
+        let initialUserState = {
+            SampleBytes = Array.zeroCreate 0
+            TotalBytesProcessed = 0
+            PreviousSamples = Array.empty
+        }
+
+        Vizualizer((phaseAnimator canvas), stateAggregator, initialUserState).Start
+
     let spectrum fileName =
 
         let convas = ConViz.initialise
@@ -40,25 +126,18 @@ module Animation
             value * yScalingFactor
             |> applySlope xPos
 
-        let fftUserStateAggregator oldData newData =
+        let stateAggregator oldData newData =
             { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
 
         let aggregateSamples (samples: int[,]) =
             // TODO: this is only using left channel atm
             samples.[0,*]
 
-        let throttleFps frameState = 
-            let targetFps = 60.
-            let elapsedSeconds = (float frameState.ElapsedMs / 1000.)
-            let diff = float frameState.FrameCount - (targetFps * elapsedSeconds) |> int
-            if diff > 0 then
-                Threading.Thread.Sleep(diff)
-
         let fftAnimator canvas frameState = 
 
             let drawSpectrum samples = 
                 samples
-                |> FFFT.fftF2F
+                |> FFFT.fftFloatToFloat
                 |> Array.take (int fftOutputSize)
                 |> Array.skip 20
                 |> Array.mapi (fun i v -> 
@@ -68,14 +147,6 @@ module Animation
                     Drawille.pixel xPos yPos)
                 |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
                 |> ConViz.updateConsole convas
-
-            let storeSamples previousSamples samples =
-                if smoothing = 0 then
-                    [||]
-                else
-                    match Array.length previousSamples with
-                    | length when length = smoothing -> Array.append (Array.tail previousSamples) [|samples|]
-                    | _ -> Array.append previousSamples [|samples|]
 
             let smooth previousSamples samples = 
 
@@ -104,7 +175,7 @@ module Animation
                     animationState with 
                         TotalBytesProcessed = animationState.TotalBytesProcessed + animationState.SampleBytes.Length
                         SampleBytes = nextBytes
-                        PreviousSamples = storeSamples animationState.PreviousSamples samples
+                        PreviousSamples = storeSamples smoothing animationState.PreviousSamples samples
                 }
                 match nextBytes with
                 | [||] -> userState'
@@ -118,4 +189,4 @@ module Animation
             PreviousSamples = Array.empty
         }
 
-        Vizualizer((fftAnimator canvas), fftUserStateAggregator, initialUserState).Start
+        Vizualizer((fftAnimator canvas), stateAggregator, initialUserState).Start

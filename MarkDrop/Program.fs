@@ -131,9 +131,14 @@ let main argv =
 
         drawwaveform fileName
 
-    else if argv.[0] = "-v" then
+    else if argv.[0] = "--spectrum" then
 
         Animation.spectrum fileName
+        |> animate fileName
+
+    else if argv.[0] = "--phase" then
+
+        Animation.phase fileName
         |> animate fileName
 
     0
