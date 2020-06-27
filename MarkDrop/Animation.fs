@@ -74,12 +74,13 @@ module Animation
                     let r = float slice.[1]
                     let lAbs = l |> abs |> float
                     let rAbs = r |> abs |> float
-                    let maxAmp = 
-                        match max lAbs rAbs with
-                        | 0. -> 1.
-                        | x -> x
+                    let furthestFromZero = 
+                        if lAbs > rAbs then l
+                        else if rAbs > lAbs then r
+                        else if rAbs = 0. then 1.
+                        else r
                     let amplitude = ((lAbs + rAbs) / 2.) * ampScalingFactor
-                    let angle = ((-lAbs + rAbs) / maxAmp) + halfPi
+                    let angle = ((-l + r) / furthestFromZero) + halfPi
                     let x = amplitude * cos angle 
                     let xPos = -x |> translateX |> int
                     let y = amplitude * sin angle 
