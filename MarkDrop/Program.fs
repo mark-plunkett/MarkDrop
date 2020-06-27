@@ -68,18 +68,17 @@ let animate fileName (viz : MailboxProcessor<VizMessage<AnimationState, byte[]>>
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
     let latencyMs = 30.
-    let numBuffers = 1
     let numSamples = wavHeader.SampleRate / int latencyMs
     let numBytesRaw = (wavHeader.BitsPerSample * numSamples) / 8
     let numBytes = numBytesRaw - (numBytesRaw % wavHeader.BlockAlign)
     let dataLength = Array.length wavData
     let expectedBytesPerMs = (float sampleInfo.SampleRate * float sampleInfo.BytesPerMultiChannelSample) / 1000.
 
-    let calculateLatency frameState =
+    let calculateLatency totalBytesProcessed frameState =
         let expectedBytesProcessed = float frameState.ElapsedMs * expectedBytesPerMs
-        (float frameState.UserState.TotalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
+        (float totalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
         
-    let rec queueSamples sampleOffset threadNumber = async {
+    let rec queueSamples sampleOffset totalBytesProcessed = async {
 
         let byteOffset = (sampleOffset * wavHeader.BitsPerSample) / 8
         match byteOffset with
@@ -93,15 +92,13 @@ let animate fileName (viz : MailboxProcessor<VizMessage<AnimationState, byte[]>>
 
             let sampleBytes = Array.sub wavData byteOffset readLength
             viz.Post (Data sampleBytes)
-            let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency |> max 0. |> int
+            let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
             do! Async.Sleep msToWait
 
-            return! queueSamples (sampleOffset + (threadNumber * numSamples)) threadNumber
+            return! queueSamples (sampleOffset + numSamples) (totalBytesProcessed + Array.length sampleBytes)
     }
 
-    [1..numBuffers]
-    |> List.mapi (fun i n -> queueSamples (i * numSamples) n)
-    |> Async.Parallel
+    queueSamples 0 0
     |> Async.RunSynchronously
     |> ignore
 

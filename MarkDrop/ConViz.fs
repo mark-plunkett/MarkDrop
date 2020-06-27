@@ -28,7 +28,6 @@
 
     type AnimationState = {
         SampleBytes: byte[]
-        TotalBytesProcessed: int
         PreviousSamples: float[][]
     }
 

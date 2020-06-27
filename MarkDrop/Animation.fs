@@ -29,9 +29,10 @@ module Animation
         let p = 9
         let blockSize = pown 2 9
         let blockSizeBytes = blockSize * wavHeader.BlockAlign
-        let sampleMax = pown 2. 16
-        let ampScalingFactor = float canvas.Height / sampleMax
+        let sampleMax = 0.5 *  pown 2. 16
+        let ampScalingFactor = (float canvas.Height / sampleMax)
         let origin = Drawille.pixel (int canvas.Width / 2) 0
+        let smoothing = 2
 
         let stateAggregator oldData newData =
             { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
@@ -70,7 +71,6 @@ module Animation
 
                 let userState' = { 
                     animationState with 
-                        TotalBytesProcessed = animationState.TotalBytesProcessed + animationState.SampleBytes.Length
                         SampleBytes = nextBytes
                         //PreviousSamples = storeSamples animationState.PreviousSamples samples
                 }
@@ -83,7 +83,6 @@ module Animation
 
         let initialUserState = {
             SampleBytes = Array.zeroCreate 0
-            TotalBytesProcessed = 0
             PreviousSamples = Array.empty
         }
 
@@ -173,7 +172,6 @@ module Animation
 
                 let userState' = { 
                     animationState with 
-                        TotalBytesProcessed = animationState.TotalBytesProcessed + animationState.SampleBytes.Length
                         SampleBytes = nextBytes
                         PreviousSamples = storeSamples smoothing animationState.PreviousSamples samples
                 }
@@ -185,7 +183,6 @@ module Animation
 
         let initialUserState = {
             SampleBytes = Array.zeroCreate 0
-            TotalBytesProcessed = 0
             PreviousSamples = Array.empty
         }
 
