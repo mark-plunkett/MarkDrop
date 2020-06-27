@@ -38,8 +38,10 @@ module Animation
             let blockSizeBytes = blockSize * wavHeader.BlockAlign
             let sampleMax = 0.5 *  pown 2. 16
             let ampScalingFactor = (float canvas.Height / sampleMax)
+            let quarterPi = Math.PI / 4.
+            let angleScalingFactor = Math.PI / (sampleMax * 2.)
             let origin = Drawille.pixel (int canvas.Width / 2) 0
-            let smoothing = 5
+            let smoothing = 0
 
             let stateAggregator oldData newData =
                 { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
@@ -51,7 +53,7 @@ module Animation
                 float canvas.Height - 1. - value
 
             let smooth previousSamples samples = 
-
+                
                 let numChannels = Array2D.length1 samples
                 let numSamplesPerChannel = Array2D.length2 samples
                 let numArrays = smoothing + 1
@@ -68,16 +70,20 @@ module Animation
 
                 [0..Array2D.length2 samples - 1]
                 |> List.map (fun i -> 
-                    let l = samples.[*,i].[0]
-                    let r = samples.[*,i].[1]
+                    let slice = samples.[*,i]
+                    let l = float slice.[0]
+                    let r = float slice.[1]
                     let lAbs = l |> abs |> float
                     let rAbs = r |> abs |> float
                     let amplitude = ((lAbs + rAbs) / 2.) * ampScalingFactor
-                    let angle =  (lAbs - rAbs) / Math.PI
+                    let angle = ((-lAbs + rAbs) / sampleMax) * quarterPi
                     let x = amplitude * sin angle 
                     let xPos = x |> translateX |> int
                     let y = amplitude * cos angle 
                     let yPos = y |> translateY |> int
+
+                    //printfn "x: %3i y: %3i" xPos yPos
+
                     Drawille.pixel xPos yPos)
                 |> Util.flip Drawille.drawPoints (canvas |> Drawille.clear)
                 |> ConViz.updateConsole convas
