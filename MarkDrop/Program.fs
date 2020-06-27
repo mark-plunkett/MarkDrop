@@ -95,7 +95,7 @@ let animate<'TUserState> fileName (viz : MailboxProcessor<VizMessage<'TUserState
             let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
             do! Async.Sleep msToWait
 
-            //return! queueSamples (sampleOffset + numSamples) (totalBytesProcessed + Array.length sampleBytes)
+            return! queueSamples (sampleOffset + numSamples) (totalBytesProcessed + Array.length sampleBytes)
     }
 
     queueSamples 0 0
@@ -116,8 +116,8 @@ let main argv =
     // LONG FILE ~1GB
     // let fileName = @"D:\Google Drive\Music\Mixes\Jungle\Gold Dubs Revamped Classics Mix 2014.wav"
 
-    //let fileName = @"C:\Dev\MarkDrop\Audio\imager-flower.wav"
-    let fileName = @"C:\Dev\MarkDrop\Audio\imager-left-45.wav"
+    let fileName = @"C:\Dev\MarkDrop\Audio\imager-flower.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\imager-left-45.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
     //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
     //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
