@@ -39,8 +39,6 @@ module Animation
             let sampleMax = 0.5 *  pown 2. 16
             let ampScalingFactor = (float canvas.Height / sampleMax)
             let halfPi = Math.PI / 2.
-            let quarterPi = Math.PI / 4.
-            let angleScalingFactor = Math.PI / (sampleMax * 2.)
             let origin = Drawille.pixel (int canvas.Width / 2) 0
             let smoothing = 5
 
@@ -77,8 +75,9 @@ module Animation
                     let lAbs = l |> abs |> float
                     let rAbs = r |> abs |> float
                     let maxAmp = 
-                        if lAbs = 0. && rAbs = 0. then 1.
-                        else max lAbs rAbs
+                        match max lAbs rAbs with
+                        | 0. -> 1.
+                        | x -> x
                     let amplitude = ((lAbs + rAbs) / 2.) * ampScalingFactor
                     let angle = ((-lAbs + rAbs) / maxAmp) + halfPi
                     let x = amplitude * cos angle 
