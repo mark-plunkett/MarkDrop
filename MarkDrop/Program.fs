@@ -61,7 +61,7 @@ let drawwaveform fileName =
 
 //     feed 1. |> ignore
 
-let animate fileName (viz : MailboxProcessor<VizMessage<AnimationState, byte[]>>) =
+let animate<'TUserState> fileName (viz : MailboxProcessor<VizMessage<'TUserState, byte[]>>) =
 
     let wavHeader = WavAudio.readHeader fileName false
     let wavData = WavAudio.readData fileName wavHeader
@@ -130,12 +130,12 @@ let main argv =
 
     else if argv.[0] = "--spectrum" then
 
-        Animation.spectrum fileName
+        Animation.Spectrum.spectrum fileName
         |> animate fileName
 
     else if argv.[0] = "--phase" then
 
-        Animation.phase fileName
+        Animation.Phase.phase fileName
         |> animate fileName
 
     0
