@@ -1,6 +1,8 @@
 module Animation
 
     open ConViz
+    open WavAudio
+    
     open System
 
     let storeSamples smoothing previousSamples samples =
@@ -25,17 +27,14 @@ module Animation
             PreviousSamples: int[,][]
         }
 
-        let phase fileName =
+        let phase sampleInfo =
 
             let convas = ConViz.initialise
             let canvas = Drawille.createCharCanvas convas.CharWidth (convas.CharHeight / 2)
 
-            let wavHeader = WavAudio.readHeader fileName false
-            let sampleInfo = WavAudio.getSampleInfo wavHeader
-
             let p = 9
             let blockSize = pown 2 9
-            let blockSizeBytes = blockSize * wavHeader.BlockAlign
+            let blockSizeBytes = blockSize * sampleInfo.BytesPerMultiChannelSample
             let sampleMax = 0.5 *  pown 2. 16
             let ampScalingFactor = (float canvas.Height / sampleMax)
             let halfPi = Math.PI / 2.
@@ -118,7 +117,7 @@ module Animation
                 PreviousSamples = Array.empty
             }
 
-            Vizualizer((phaseAnimator canvas), stateAggregator, initialUserState).Start
+            Vizualizer((phaseAnimator canvas), stateAggregator, initialUserState)
 
     module Spectrum =
 
@@ -127,20 +126,17 @@ module Animation
             PreviousSamples: float[][]
         }
 
-        let spectrum fileName =
+        let spectrum sampleInfo =
 
             let convas = ConViz.initialise
             let canvas = Drawille.createCharCanvas convas.CharWidth (convas.CharHeight / 2)
-
-            let wavHeader = WavAudio.readHeader fileName false
-            let sampleInfo = WavAudio.getSampleInfo wavHeader
 
             let p = 11
             let fftBlockSize = pown 2 p
             let fftOutputRatio = 0.5 // We discard half the FFT output
             let fftPaddedSize = pown 2 13
-            let fftOutputSize = fftOutputRatio * float fftPaddedSize //float fftBlockSize * fftOutputRatio
-            let fftBlockSizeBytes = fftBlockSize * wavHeader.BlockAlign
+            let fftOutputSize = fftOutputRatio * float fftPaddedSize
+            let fftBlockSizeBytes = fftBlockSize * sampleInfo.BytesPerMultiChannelSample
             let yScalingFactor = 2.
             let sampleScalingFactor = 0.5 * pown 2. 16
             let slope = 4.
@@ -187,7 +183,6 @@ module Animation
                     |> ConViz.updateConsole convas
 
                 let smooth previousSamples samples = 
-
                     previousSamples
                     |> Array.append [|samples|]
                     |> Array.transpose
@@ -225,4 +220,4 @@ module Animation
                 PreviousSamples = Array.empty
             }
 
-            Vizualizer((fftAnimator canvas), stateAggregator, initialUserState).Start
+            Vizualizer((fftAnimator canvas), stateAggregator, initialUserState)

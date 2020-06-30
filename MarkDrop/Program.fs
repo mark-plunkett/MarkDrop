@@ -133,12 +133,18 @@ let main argv =
 
     else if argv.[0] = "--spectrum" then
 
-        Animation.Spectrum.spectrum fileName
+        let wavHeader = WavAudio.readHeader fileName false
+        let sampleInfo = WavAudio.getSampleInfo wavHeader
+        let viz = Animation.Spectrum.spectrum sampleInfo
+        viz.Start
         |> animate fileName
 
     else if argv.[0] = "--phase" then
 
-        Animation.Phase.phase fileName
+        let wavHeader = WavAudio.readHeader fileName false
+        let sampleInfo = WavAudio.getSampleInfo wavHeader
+        let viz = Animation.Phase.phase sampleInfo
+        viz.Start
         |> animate fileName
 
     0
