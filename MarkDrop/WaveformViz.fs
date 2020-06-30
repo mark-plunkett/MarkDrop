@@ -7,10 +7,9 @@
     open FSharpx.Collections
     open FSharp.Collections.ParallelSeq
 
-    let getChunkSize wavHeader canvas =
-        let sampleInfo = getSampleInfo wavHeader
-        if sampleInfo.NumSamples <= int canvas.Width then sampleInfo.NumSamples
-        else ceil (float sampleInfo.NumSamples / float canvas.Width) |> int
+    let getChunkSize numSamples canvas =
+        if numSamples <= int canvas.Width then numSamples
+        else ceil (float numSamples / float canvas.Width) |> int
 
     let inline minMaxValues values =
         (PSeq.min values, PSeq.max values)

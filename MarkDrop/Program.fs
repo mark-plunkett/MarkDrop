@@ -13,28 +13,34 @@ Args
 
 type Args = {
     FileName: string
-
 }
 
 let parseArgs args =
-
     {FileName = ""}
 
-let drawwaveform fileName =
+let drawWaveform fileName =
 
     let wavHeader = WavAudio.readHeader fileName false
     wavHeader |> WavAudio.printInfo fileName
+    let sampleInfo = WavAudio.getSampleInfo wavHeader
 
     let convas = ConViz.initialise
     let canvas = Drawille.createPixelCanvas (convas.CharWidth * 2) (convas.CharHeight * 4)
-    let samplesPerChunk = WaveformViz.getChunkSize wavHeader canvas    
+    let numSamples = wavHeader.SubChunk2Size / sampleInfo.BytesPerMultiChannelSample
+    let samplesPerChunk = WaveformViz.getChunkSize numSamples canvas    
 
     WavAudio.parallelProcessAllData fileName samplesPerChunk
     |> WaveformViz.drawMonoSumWaveform canvas (float Int16.MaxValue)
     |> Drawille.toStrings
     |> printfn "%s"
-    
-    ()
+
+let startViz (animation: (WavAudio.SampleInfo -> Vizualizer<'TUserState, byte[]>)) fileName =
+
+    let wavHeader = WavAudio.readHeader fileName false
+    let sampleInfo = WavAudio.getSampleInfo wavHeader
+    let wavData = WavAudio.readData fileName wavHeader
+    let viz = animation sampleInfo
+    Animation.animate sampleInfo wavData viz.Start
 
 // let animateRect viz =
 
@@ -61,47 +67,6 @@ let drawwaveform fileName =
 
 //     feed 1. |> ignore
 
-let animate<'TUserState> fileName (viz : MailboxProcessor<VizMessage<'TUserState, byte[]>>) =
-
-    let wavHeader = WavAudio.readHeader fileName false
-    let wavData = WavAudio.readData fileName wavHeader
-    let sampleInfo = WavAudio.getSampleInfo wavHeader
-
-    let latencyMs = 30.
-    let numSamples = wavHeader.SampleRate / int latencyMs
-    let numBytesRaw = (wavHeader.BitsPerSample * numSamples) / 8
-    let numBytes = numBytesRaw - (numBytesRaw % wavHeader.BlockAlign)
-    let dataLength = Array.length wavData
-    let expectedBytesPerMs = (float sampleInfo.SampleRate * float sampleInfo.BytesPerMultiChannelSample) / 1000.
-
-    let calculateLatency totalBytesProcessed frameState =
-        let expectedBytesProcessed = float frameState.ElapsedMs * expectedBytesPerMs
-        (float totalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
-        
-    let rec queueSamples sampleOffset totalBytesProcessed = async {
-
-        let byteOffset = (sampleOffset * wavHeader.BitsPerSample) / 8
-        match byteOffset with
-        | x when x >= dataLength -> 
-            ()
-        | _ ->         
-            let readLength = 
-                match (byteOffset + numBytes) with
-                | o when o > dataLength -> o - dataLength
-                | _ -> numBytes
-
-            let sampleBytes = Array.sub wavData byteOffset readLength
-            viz.Post (Data sampleBytes)
-            let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
-            do! Async.Sleep msToWait
-
-            return! queueSamples (sampleOffset + numSamples) (totalBytesProcessed + Array.length sampleBytes)
-    }
-
-    queueSamples 0 0
-    |> Async.RunSynchronously
-    |> ignore
-
 [<EntryPoint>]
 let main argv =
 
@@ -116,12 +81,12 @@ let main argv =
     // LONG FILE ~1GB
     // let fileName = @"D:\Google Drive\Music\Mixes\Jungle\Gold Dubs Revamped Classics Mix 2014.wav"
 
-    let fileName = @"C:\Dev\MarkDrop\Audio\imager-flower.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\imager-flower.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\imager-very-phased.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\imager-left-45.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
     //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\JANICE - b - 1.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"
@@ -129,22 +94,14 @@ let main argv =
 
     if argv.[0] = "-w" then
 
-        drawwaveform fileName
+        drawWaveform fileName
 
     else if argv.[0] = "--spectrum" then
 
-        let wavHeader = WavAudio.readHeader fileName false
-        let sampleInfo = WavAudio.getSampleInfo wavHeader
-        let viz = Animation.Spectrum.spectrum sampleInfo
-        viz.Start
-        |> animate fileName
+        startViz Animation.Spectrum.spectrum fileName
 
     else if argv.[0] = "--phase" then
 
-        let wavHeader = WavAudio.readHeader fileName false
-        let sampleInfo = WavAudio.getSampleInfo wavHeader
-        let viz = Animation.Phase.phase sampleInfo
-        viz.Start
-        |> animate fileName
+        startViz Animation.Phase.phase fileName
 
     0

@@ -1,5 +1,5 @@
-﻿#r @"C:\Users\markj\.nuget\packages\fsharpx.collections\2.1.2\lib\netstandard2.0\FSharpx.Collections.dll"
-#r @"C:\Users\markj\.nuget\packages\fsharp.collections.parallelseq\1.1.2\lib\netstandard2.0\FSharp.Collections.ParallelSeq.dll"
+﻿#r @"C=\Users\markj\.nuget\packages\fsharpx.collections\2.1.2\lib\netstandard2.0\FSharpx.Collections.dll"
+#r @"C=\Users\markj\.nuget\packages\fsharp.collections.parallelseq\1.1.2\lib\netstandard2.0\FSharp.Collections.ParallelSeq.dll"
 
 #load "Converters.fs"
 #load "Util.fs"
@@ -9,9 +9,10 @@
 #load "WavAudio.fs"
 #load "ConViz.fs"
 #load "WaveformViz.fs"
+#load "Animation.fs"
 
-open FSharpx.Collections
 open Drawille
+open WavAudio
 
 try
     System.Console.OutputEncoding <- System.Text.Encoding.UTF8
@@ -34,18 +35,11 @@ let toSineWave frequency amplitude t =
 let toSineWaves i t =
     (toSineWave i 1. t) //+ (toSineWave (100. + i) 1. t) //+ (toSineWave 1000. 1. t)
 
-let fps = 30
-let msPerFrame = 1000 / fps
-let mutable i = 1.
-while true do
+let sampleInfo = {
+    BytesPerSample = 2
+    NumChannels= 2
+    BytesPerMultiChannelSample= 2 * 2 
+    SampleRate= 41000
+}
 
-    let samples = [for t in 0. ..numSamples-1. -> toSineWaves i (t*deltaT)]
-
-    //samples
-    //|> WaveformViz.drawWaveform canvasI
-    //|> ConViz.drawCanvas
-
-    // Do FFT
-    let output = FFT.fftList samples
-
-    
+let viz = Animation.Phase.phase sampleInfo

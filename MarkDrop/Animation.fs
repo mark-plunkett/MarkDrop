@@ -19,6 +19,43 @@ module Animation
         let diff = float frameState.FrameCount - (targetFps * elapsedSeconds) |> int
         if diff > 0 then
             Threading.Thread.Sleep(diff)
+    
+    let animate<'TUserState> sampleInfo data (viz : MailboxProcessor<VizMessage<'TUserState, byte[]>>) =
+
+        let latencyMs = 30.
+        let numSamples = sampleInfo.SampleRate / int latencyMs
+        let numBytesRaw = sampleInfo.BytesPerSample * numSamples
+        let numBytes = numBytesRaw - (numBytesRaw % sampleInfo.BytesPerMultiChannelSample)
+        let dataLength = Array.length data
+        let expectedBytesPerMs = (float sampleInfo.SampleRate * float sampleInfo.BytesPerMultiChannelSample) / 1000.
+
+        let calculateLatency totalBytesProcessed frameState =
+            let expectedBytesProcessed = float frameState.ElapsedMs * expectedBytesPerMs
+            (float totalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
+            
+        let rec queueSamples sampleOffset totalBytesProcessed = async {
+
+            let byteOffset = sampleOffset * sampleInfo.BytesPerSample
+            match byteOffset with
+            | x when x >= dataLength -> 
+                ()
+            | _ ->         
+                let readLength = 
+                    match (byteOffset + numBytes) with
+                    | o when o > dataLength -> o - dataLength
+                    | _ -> numBytes
+
+                let sampleBytes = Array.sub data byteOffset readLength
+                viz.Post (Data sampleBytes)
+                let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
+                do! Async.Sleep msToWait
+
+                return! queueSamples (sampleOffset + numSamples) (totalBytesProcessed + Array.length sampleBytes)
+        }
+
+        queueSamples 0 0
+        |> Async.RunSynchronously
+        |> ignore
 
     module Phase =
 
@@ -209,6 +246,7 @@ module Animation
                             SampleBytes = nextBytes
                             PreviousSamples = storeSamples smoothing animationState.PreviousSamples samples
                     }
+
                     match nextBytes with
                     | [||] -> userState'
                     | _ -> processBlock userState'
