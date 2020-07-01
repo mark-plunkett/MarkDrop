@@ -43,3 +43,4 @@ let sampleInfo = {
 }
 
 let viz = Animation.Phase.phase sampleInfo
+viz.Start

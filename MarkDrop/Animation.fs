@@ -20,37 +20,33 @@ module Animation
         if diff > 0 then
             Threading.Thread.Sleep(diff)
     
-    let animate<'TUserState> sampleInfo data (viz : MailboxProcessor<VizMessage<'TUserState, byte[]>>) =
+    let animate<'TUserState> sampleInfo (stream: IO.Stream) (viz: MailboxProcessor<VizMessage<'TUserState, byte[]>>) =
 
         let latencyMs = 30.
         let numSamples = sampleInfo.SampleRate / int latencyMs
         let numBytesRaw = sampleInfo.BytesPerSample * numSamples
         let numBytes = numBytesRaw - (numBytesRaw % sampleInfo.BytesPerMultiChannelSample)
-        let dataLength = Array.length data
         let expectedBytesPerMs = (float sampleInfo.SampleRate * float sampleInfo.BytesPerMultiChannelSample) / 1000.
 
         let calculateLatency totalBytesProcessed frameState =
             let expectedBytesProcessed = float frameState.ElapsedMs * expectedBytesPerMs
             (float totalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
-            
+        
+        let buffer = Array.zeroCreate numBytes
         let rec queueSamples sampleOffset totalBytesProcessed = async {
 
-            let byteOffset = sampleOffset * sampleInfo.BytesPerSample
-            match byteOffset with
-            | x when x >= dataLength -> 
-                ()
-            | _ ->         
-                let readLength = 
-                    match (byteOffset + numBytes) with
-                    | o when o > dataLength -> o - dataLength
-                    | _ -> numBytes
-
-                let sampleBytes = Array.sub data byteOffset readLength
-                viz.Post (Data sampleBytes)
+            let byteCount = numBytes |> int64
+            let byteCount' = 
+                if byteCount > stream.Length then byteCount - stream.Length 
+                else byteCount
+            let bytesRead = stream.Read(buffer, 0, byteCount' |> int)
+            match bytesRead with
+            | 0 -> ()
+            | i -> 
+                viz.Post (Data buffer)
                 let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
                 do! Async.Sleep msToWait
-
-                return! queueSamples (sampleOffset + numSamples) (totalBytesProcessed + Array.length sampleBytes)
+                return! queueSamples (sampleOffset + numSamples) (totalBytesProcessed + Array.length buffer)
         }
 
         queueSamples 0 0
