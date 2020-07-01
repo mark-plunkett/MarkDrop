@@ -35,18 +35,14 @@ module Animation
         let buffer = Array.zeroCreate numBytes
         let rec queueSamples sampleOffset totalBytesProcessed = async {
 
-            let byteCount = numBytes |> int64
-            let byteCount' = 
-                if byteCount > stream.Length then byteCount - stream.Length 
-                else byteCount
-            let bytesRead = stream.Read(buffer, 0, byteCount' |> int)
-            match bytesRead with
+            match stream.Read(buffer, 0, numBytes) with
             | 0 -> ()
-            | i -> 
+            | bytesRead -> 
                 viz.Post (Data buffer)
                 let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
                 do! Async.Sleep msToWait
-                return! queueSamples (sampleOffset + numSamples) (totalBytesProcessed + Array.length buffer)
+                return! queueSamples (sampleOffset + bytesRead) (totalBytesProcessed + bytesRead)
+
         }
 
         queueSamples 0 0
