@@ -39,7 +39,7 @@ let startViz (animation: (WavAudio.SampleInfo -> Vizualizer<'TUserState, byte[]>
     let wavHeader = WavAudio.readHeader fileName false
     let sampleInfo = WavAudio.getSampleInfo wavHeader
     let viz = animation sampleInfo
-    use stream = new IO.BufferedStream(IO.File.OpenRead(fileName))
+    use stream = new IO.BufferedStream(IO.File.OpenRead(fileName), 10 * 1024 * 1000)
     Animation.animate sampleInfo stream viz.Start
 
 // let animateRect viz =

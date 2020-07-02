@@ -59,7 +59,7 @@ module Animation
         let phase sampleInfo =
 
             let convas = ConViz.initialise
-            let canvas = Drawille.createCharCanvas convas.CharWidth (convas.CharHeight / 2)
+            let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
 
             let p = 9
             let blockSize = pown 2 9
@@ -113,12 +113,11 @@ module Animation
                     let xPos = -x |> translateX |> int
                     let y = amplitude * sin angle 
                     let yPos = y |> translateY |> int
-
                     Drawille.pixel xPos yPos)
                 |> Util.flip Drawille.drawPoints (canvas |> Drawille.clear)
                 |> ConViz.updateConsole convas
 
-            let phaseAnimator canvas frameState = 
+            let phaseAnimator frameState = 
 
                 let rec processBlock animationState =
 
@@ -146,7 +145,7 @@ module Animation
                 PreviousSamples = Array.empty
             }
 
-            Vizualizer((phaseAnimator canvas), stateAggregator, initialUserState)
+            Vizualizer(phaseAnimator, stateAggregator, initialUserState)
 
     module Spectrum =
 
