@@ -20,7 +20,7 @@ module Animation
         if diff > 0 then
             Threading.Thread.Sleep(diff)
     
-    let animate<'TUserState> sampleInfo (stream: IO.Stream) (viz: MailboxProcessor<VizMessage<'TUserState, byte[]>>) =
+    let animate<'TUserState> sampleInfo (stream: IO.Stream) (viz: MailboxProcessor<VizMessage<'TUserState, byte[]>>) forever =
 
         let latencyMs = 30.
         let numSamples = sampleInfo.SampleRate / int latencyMs
@@ -33,45 +33,43 @@ module Animation
             (float totalBytesProcessed - expectedBytesProcessed) / expectedBytesPerMs
         
         let buffer = Array.zeroCreate numBytes
-        let rec queueSamples sampleOffset totalBytesProcessed = async {
+        let rec animateBytes totalBytesProcessed = async {
+
+            let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
+            do! Async.Sleep msToWait
 
             match stream.Read(buffer, 0, numBytes) with
-            | 0 -> ()
+            | 0 -> 
+                if forever then return! animateBytes totalBytesProcessed
+                else ()
             | bytesRead -> 
                 viz.Post (Data buffer)
-                let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
-                do! Async.Sleep msToWait
-                return! queueSamples (sampleOffset + bytesRead) (totalBytesProcessed + bytesRead)
+                return! animateBytes (totalBytesProcessed + bytesRead)
 
         }
 
-        queueSamples 0 0
+        animateBytes 0 
         |> Async.RunSynchronously
         |> ignore
 
     module Phase =
-
+        
         type AnimationState = {
             SampleBytes: byte[]
             PreviousSamples: int[,][]
         }
 
-        let phase sampleInfo =
+        module internal Internal =
 
             let convas = ConViz.initialise
             let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
-
             let p = 9
-            let blockSize = pown 2 9
-            let blockSizeBytes = blockSize * sampleInfo.BytesPerMultiChannelSample
-            let sampleMax = 0.5 *  pown 2. 16
-            let ampScalingFactor = (float canvas.Height / sampleMax)
+            let blockSize = pown 2 p
+            let sampleMax = 0.5 *  pown 2. 16            
+            let smoothing = 5
+            let ampScalingFactor = float canvas.Height / sampleMax
             let halfPi = Math.PI / 2.
             let origin = Drawille.pixel (int canvas.Width / 2) 0
-            let smoothing = 5
-
-            let stateAggregator oldData newData =
-                { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
 
             let translateX value =
                 value + float origin.X
@@ -79,7 +77,7 @@ module Animation
             let translateY value = 
                 float canvas.Height - 1. - value
 
-            let smooth previousSamples samples = 
+            let smooth smoothing previousSamples samples = 
                 
                 let numChannels = Array2D.length1 samples
                 let numSamplesPerChannel = Array2D.length2 samples
@@ -92,6 +90,9 @@ module Animation
                 Array.append previousSamples [|samples|]
                 |> Array.mapi (fun i a -> (i * numSamplesPerChannel), a)
                 |> Array.fold folder (Array2D.zeroCreate numChannels (numSamplesPerChannel * numArrays))
+
+            let stateAggregator oldData newData =
+                { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
 
             let draw (samples : int[,]) =
 
@@ -117,35 +118,43 @@ module Animation
                 |> Util.flip Drawille.drawPoints (canvas |> Drawille.clear)
                 |> ConViz.updateConsole convas
 
-            let phaseAnimator frameState = 
+            let phase sampleInfo =
 
-                let rec processBlock animationState =
+                let blockSizeBytes = blockSize * sampleInfo.BytesPerMultiChannelSample
 
-                    let (bytes, nextBytes) = Util.chunkBytes blockSizeBytes animationState.SampleBytes
-                    let samples = WavAudio.bytesToSamples sampleInfo bytes
+                let phaseAnimator frameState = 
 
-                    samples
-                    |> smooth animationState.PreviousSamples
-                    |> draw
+                    let rec processBlock animationState =
 
-                    let userState' = { 
-                        animationState with 
-                            SampleBytes = nextBytes
-                            PreviousSamples = storeSamples smoothing animationState.PreviousSamples samples
-                    }
-                    
-                    match nextBytes with
-                    | [||] -> userState'
-                    | _ -> processBlock userState'
+                        let (bytes, nextBytes) = Util.chunkBytes blockSizeBytes animationState.SampleBytes
+                        let samples = WavAudio.bytesToSamples sampleInfo bytes
 
-                processBlock frameState.UserState
+                        samples
+                        |> smooth smoothing animationState.PreviousSamples
+                        |> draw
 
-            let initialUserState = {
-                SampleBytes = Array.zeroCreate 0
-                PreviousSamples = Array.empty
-            }
+                        let userState' = { 
+                            animationState with 
+                                SampleBytes = nextBytes
+                                PreviousSamples = storeSamples smoothing animationState.PreviousSamples samples
+                        }
+                        
+                        match nextBytes with
+                        | [||] -> userState'
+                        | _ -> processBlock userState'
 
-            Vizualizer(phaseAnimator, stateAggregator, initialUserState)
+                    processBlock frameState.UserState
+
+                let initialUserState = {
+                    SampleBytes = Array.zeroCreate 0
+                    PreviousSamples = Array.empty
+                }
+
+                Vizualizer(phaseAnimator, stateAggregator, initialUserState)
+
+        let phaseRaw sampleInfo =
+
+            Internal.phase sampleInfo
 
     module Spectrum =
 

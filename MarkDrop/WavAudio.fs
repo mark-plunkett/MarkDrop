@@ -36,6 +36,7 @@
         NumChannels: int
         BytesPerMultiChannelSample: int
         SampleRate: int
+        BitDepth: int
     }
 
     let readHeader fileName disposeFileStream =
@@ -66,6 +67,7 @@
             NumChannels = header.NumChannels
             BytesPerMultiChannelSample = bytesPerMultiChannelSample
             SampleRate = header.SampleRate
+            BitDepth = header.BitsPerSample
         }
 
     // Returns a 2D array, first dimension is per channel, second dimension is samples for that channel

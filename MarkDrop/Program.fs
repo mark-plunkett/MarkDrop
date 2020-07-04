@@ -40,7 +40,7 @@ let startViz (animation: (WavAudio.SampleInfo -> Vizualizer<'TUserState, byte[]>
     let sampleInfo = WavAudio.getSampleInfo wavHeader
     let viz = animation sampleInfo
     use stream = new IO.BufferedStream(IO.File.OpenRead(fileName), 10 * 1024 * 1000)
-    Animation.animate sampleInfo stream viz.Start
+    Animation.animate sampleInfo stream viz.Start false
 
 // let animateRect viz =
 
@@ -102,6 +102,6 @@ let main argv =
 
     else if argv.[0] = "--phase" then
 
-        startViz Animation.Phase.phase fileName
+        startViz Animation.Phase.phaseRaw fileName
 
     0
