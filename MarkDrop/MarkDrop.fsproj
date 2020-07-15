@@ -17,6 +17,7 @@
     <Compile Include="WaveformViz.fs" />
     <Compile Include="Animation.fs" />
     <Compile Include="Program.fs" />
+    <None Include="FeedbackTests.fsx" />
     <None Include="Tests.fsx" />
     <None Include="SineTests.fsx" />
     <None Include="StreamTests.fsx" />

@@ -24,7 +24,7 @@ let drawWaveform fileName =
     wavHeader |> WavAudio.printInfo fileName
     let sampleInfo = WavAudio.getSampleInfo wavHeader
 
-    let convas = ConViz.initialise
+    let convas = ConViz.initialise()
     let canvas = Drawille.createPixelCanvas (convas.CharWidth * 2) (convas.CharHeight * 4)
     let numSamples = wavHeader.SubChunk2Size / sampleInfo.BytesPerMultiChannelSample
     let samplesPerChunk = WaveformViz.getChunkSize numSamples canvas    
@@ -103,5 +103,9 @@ let main argv =
     else if argv.[0] = "--phase" then
 
         startViz Animation.Phase.phaseRaw fileName
+
+    else if argv.[0] = "--feedback" then
+
+        startViz Animation.Feedback.feedback fileName
 
     0

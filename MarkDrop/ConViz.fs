@@ -101,7 +101,7 @@
         member _.Start = 
             dataAgent animator initialUserState
 
-    let initialise =
+    let initialise () =
         Console.OutputEncoding <- Text.Encoding.UTF8
         Console.CursorVisible <- false
         let w = Console.WindowWidth - 1

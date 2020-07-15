@@ -123,6 +123,11 @@
             draw tail (set head canvas)
         | [] -> canvas
 
+    let isSet pixel canvas =
+        let expected = getMappedBrailleChar pixel
+        let coords = pixelToBraillePosition pixel
+        expected &&& canvas.Grid.[int coords.X, int coords.Y] = expected
+
     let enumerate canvas f =
         let mutable x = 0
         while x < Array2D.length1 canvas.Grid do
@@ -147,7 +152,7 @@
 
     let modifyPoints f points canvas =
         points 
-        |> List.fold (fun c p -> f p c) canvas
+        |> Array.fold (fun c p -> f p c) canvas
 
     let drawPoints =
         modifyPoints set
@@ -168,8 +173,8 @@
         let max = max (abs xDelta) (abs yDelta)
         let xStep = float xDelta / float max
         let yStep = float yDelta / float max
-        [0..max]
-        |> List.map (fun i -> pixel (int fromPixel.X + multAndRound i xStep) (int fromPixel.Y + multAndRound i yStep))
+        [|0..max|]
+        |> Array.map (fun i -> pixel (int fromPixel.X + multAndRound i xStep) (int fromPixel.Y + multAndRound i yStep))
 
     let drawLine fromPixel toPixel canvas =
         if toPixel = fromPixel then 
@@ -184,13 +189,13 @@
         |> Seq.fold (fun c (p1, p2) -> drawLine p1 p2 c) canvas
        
     let rect (rect:Shapes.Rect) =
-        [
+        [|
             line rect.A rect.B
             line rect.B rect.C
             line rect.C rect.D
             line rect.D rect.A 
-        ]
-        |> List.collect id
+        |]
+        |> Array.collect id
 
     let drawRect (rectangle:Shapes.Rect) canvas =
         canvas
@@ -219,13 +224,25 @@
 
         builder.ToString()        
 
-    let trig length trigFunc angle =
-        int (length * (trigFunc angle))
-    
+    let trig trigFunc angle length =
+        length * (trigFunc angle)
+
+    let round (v: float) =
+        round v |> int
+        
+    let rotateCoords angleRadians x y =
+        let sin = trig sin angleRadians
+        let cos = trig cos angleRadians
+        let rotatedX = cos (float x) - sin (float y)
+        let rotatedY = sin (float x) + cos (float y)
+        rotatedX, rotatedY
+
     let rotate angleRadians p =
-        pixel 
-            ((trig (p.X |> int |> float) cos angleRadians) - (trig (p.Y |> int |> float) sin angleRadians)) 
-            ((trig (p.X |> int |> float) sin angleRadians) + (trig (p.Y |> int |> float) cos angleRadians)) 
+        let (x, y) = rotateCoords angleRadians (int p.X) (int p.Y)
+        pixel (round x) (round y)
     
+    let translateCoords origin x y =
+        x + int origin.X, y + int origin.Y
+
     let translate origin p =
         pixel (int p.X + int origin.X) (int p.Y + int origin.Y)

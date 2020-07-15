@@ -1,5 +1,6 @@
 module Animation
 
+    open Drawille
     open ConViz
     open WavAudio
     
@@ -52,6 +53,163 @@ module Animation
         |> Async.RunSynchronously
         |> ignore
 
+    module Feedback =
+
+        type AnimationState = {
+            SampleBytes: byte[]
+        }
+
+        module internal Internal =
+
+            let convas = ConViz.initialise()
+            let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
+            let origin = Drawille.pixel (int canvas.Width / 2) (int canvas.Height / 2)
+            let p = 9
+            let blockSize = pown 2 p
+
+            let r = Random()
+
+            let pixels = Array2D.zeroCreate<bool> (int canvas.Width) (int canvas.Height)
+
+            let centre origin pixels =
+                pixels
+                |> Array.map (Drawille.translate origin)
+
+            let drawCenterdSquare origin x =
+                Drawille.rect {
+                    A = Drawille.pixel (x/2) (x/2) 
+                    B = Drawille.pixel (-x/2) (x/2)
+                    C = Drawille.pixel (-x/2) (-x/2)
+                    D = Drawille.pixel (x/2) (-x/2)
+                }
+                |> centre origin
+
+            let iterPixels pixels f =
+                for x = 0 to Array2D.length1 pixels - 1 do
+                    for y = 0 to Array2D.length2 pixels - 1 do
+                        f x y
+
+            let filterPixels f pixels =
+                seq {
+                    for x = 0 to Array2D.length1 pixels - 1 do
+                        for y = 0 to Array2D.length2 pixels - 1 do
+                            if f x y then yield x, y
+                }
+
+            let jitterPixel x y =
+
+                let j = 1
+                pixel (r.Next(-j, j) + x) (r.Next(-j, j) + y)
+
+            let pixelsToCanvas pixels canvas =
+                iterPixels pixels (fun x y ->
+                    if pixels.[x,y] then  
+                        let f = 
+                            match r.Next(3) with
+                            | 0 -> Drawille.set
+                            | 1 -> Drawille.unset
+                            | _ -> Drawille.toggle
+                        Drawille.set (jitterPixel x y) canvas |> ignore
+                )
+                canvas
+
+            let setPixel x y =
+                let xInRange = x >= 0 && x < Array2D.length1 pixels
+                let yInRange = y >= 0 && y < Array2D.length2 pixels
+                if xInRange && yInRange then
+                    pixels.[x,y] <- true
+
+            let initial = drawCenterdSquare origin 20
+            initial |> Array.map (fun p -> int p.X, int p.Y) |> Array.iter (fun (x, y) -> setPixel x y) 
+            pixelsToCanvas pixels canvas |> ignore
+
+            let rotate angle x y =
+                let x = float x * sin angle |> int
+                let y = float y * cos angle |> int
+                x, y
+
+            let fps = 60.
+            let msPerFrame = 1000. / fps
+
+            let rotateOrigin = Drawille.pixel (int origin.X - 10) (int origin.Y - 10)
+            let angle = 4. * Math.PI / 180.
+
+            let translateToOrigin x y =
+                (x - int origin.X), (y - int origin.Y)
+
+            let rotateCoords origin angle x y  =
+                let tX, tY = translateToOrigin x y
+                //printfn "tx: %i ty: %i" tX tY
+                let newX, newY = rotateCoords angle tX tY
+                //printfn "newX: %f newY: %f" newX newY
+                translateCoords origin (newX |> round) (newY |> round)
+
+            let rotatePixels pixels rotateOrigin =
+
+                pixels 
+                |> filterPixels (fun x y -> pixels.[x,y]) 
+                |> Seq.iter (fun (x, y) -> 
+                    pixels.[x,y] <- false
+                    let finalX, finalY = rotateCoords rotateOrigin angle x y 
+                    setPixel finalX finalY
+                )
+
+            let fadePixels pixels =
+
+                pixels 
+                |> filterPixels (fun x y -> pixels.[x,y]) 
+                |> Seq.iter (fun (x, y) -> 
+                    //pixels.[x,y] <- false
+                    let finalX, finalY = x + 1, y + 1
+                    setPixel finalX finalY
+                )
+
+            let stateAggregator oldData newData =
+                { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
+
+            let feedback sampleInfo =
+
+                let blockSizeBytes = blockSize * sampleInfo.BytesPerMultiChannelSample
+
+                let feedbackAnimator frameState = 
+
+                    let rec processBlock animationState = 
+
+                        let (bytes, nextBytes) = Util.chunkBytes blockSizeBytes animationState.SampleBytes
+                        let samples = WavAudio.bytesToSamples sampleInfo bytes
+
+                        let x, y = rotateCoords origin (Math.PI / 180.) (int rotateOrigin.X) (int rotateOrigin.Y)
+                        let r = pixel x y
+
+                        rotatePixels pixels r
+                        
+                        pixelsToCanvas pixels canvas
+                        |> ConViz.updateConsole convas
+
+                        let userState' = { 
+                            animationState with 
+                                SampleBytes = nextBytes
+                        }
+
+                        match nextBytes with
+                        | [||] -> userState'
+                        | _ -> processBlock userState'
+
+                    rotatePixels pixels origin
+                    fadePixels pixels
+
+                    processBlock frameState.UserState
+
+                let initialUserState = {
+                    SampleBytes = Array.zeroCreate 0
+                }
+
+                Vizualizer(feedbackAnimator, stateAggregator, initialUserState)
+
+        let feedback sampleInfo =
+
+            Internal.feedback sampleInfo
+
     module Phase =
         
         type AnimationState = {
@@ -61,7 +219,7 @@ module Animation
 
         module internal Internal =
 
-            let convas = ConViz.initialise
+            let convas = ConViz.initialise()
             let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
             let p = 9
             let blockSize = pown 2 p
@@ -96,8 +254,8 @@ module Animation
 
             let draw (samples : int[,]) =
 
-                [0..Array2D.length2 samples - 1]
-                |> List.map (fun i -> 
+                [|0..Array2D.length2 samples - 1|]
+                |> Array.map (fun i -> 
                     let slice = samples.[*,i]
                     let l = float slice.[0]
                     let r = float slice.[1]
@@ -165,7 +323,7 @@ module Animation
 
         let spectrum sampleInfo =
 
-            let convas = ConViz.initialise
+            let convas = ConViz.initialise()
             let canvas = Drawille.createCharCanvas convas.CharWidth (convas.CharHeight / 2)
 
             let p = 11
