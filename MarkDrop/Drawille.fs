@@ -60,6 +60,9 @@
         Y = LanguagePrimitives.Int32WithMeasure y
     }
 
+    let pixelFromCoords (x, y) =
+        pixel x y
+
     let createOffsetPixelCanvas w h = 
         let roundedW = ceil (float w / float pixelsPerBrailleX) |> int
         let roundedH = ceil (float h / float pixelsPerBrailleY) |> int

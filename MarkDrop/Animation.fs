@@ -57,11 +57,12 @@ module Animation
 
         type AnimationState = {
             SampleBytes: byte[]
+            RotateOrigin: Drawille.Pixel
         }
 
         module internal Internal =
 
-            let convas = ConViz.initialise()
+            let convas = { ConViz.initialise() with ZeroOrigin = pixel 0 0 }
             let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
             let origin = Drawille.pixel (int canvas.Width / 2) (int canvas.Height / 2)
             let p = 9
@@ -110,18 +111,41 @@ module Animation
                             | 1 -> Drawille.unset
                             | _ -> Drawille.toggle
                         Drawille.set (jitterPixel x y) canvas |> ignore
+                    else
+                        Drawille.unset (pixel x y) canvas |> ignore
                 )
                 canvas
 
-            let setPixel x y =
+            let setPixel x y v =
                 let xInRange = x >= 0 && x < Array2D.length1 pixels
                 let yInRange = y >= 0 && y < Array2D.length2 pixels
                 if xInRange && yInRange then
-                    pixels.[x,y] <- true
+                    pixels.[x,y] <- v
+
+            let dumpPixels ps =
+                ()
+                // Console.SetCursorPosition(0,0)
+                // for y = 0 to Array2D.length2 ps - 1 do
+                //     for x = 0 to Array2D.length1 ps - 1 do
+                //         let c = 
+                //             if x = int origin.X && y = int origin.Y then
+                //                 "c"
+                //             else
+                //                 match ps.[x,y] with
+                //                 | true -> "x"
+                //                 | false -> "-"
+
+                //         printf "%s" c
+
+                //     printfn ""
 
             let initial = drawCenterdSquare origin 20
-            initial |> Array.map (fun p -> int p.X, int p.Y) |> Array.iter (fun (x, y) -> setPixel x y) 
-            pixelsToCanvas pixels canvas |> ignore
+            //let initial = [|pixel (int origin.X) (int origin.Y + 5)|]
+            initial |> Array.map (fun p -> int p.X, int p.Y) |> Array.iter (fun (x, y) -> setPixel x y true) 
+            pixelsToCanvas pixels canvas
+            |> ConViz.updateConsole convas
+
+            dumpPixels pixels
 
             let rotate angle x y =
                 let x = float x * sin angle |> int
@@ -131,27 +155,35 @@ module Animation
             let fps = 60.
             let msPerFrame = 1000. / fps
 
-            let rotateOrigin = Drawille.pixel (int origin.X - 10) (int origin.Y - 10)
-            let angle = 4. * Math.PI / 180.
+            let rotateOrigin = Drawille.pixel (int canvas.Width / 4) (int canvas.Height / 4)
+            let angle = 3. * Math.PI / 180.
 
-            let translateToOrigin x y =
+            let translateToOrigin origin x y =
                 (x - int origin.X), (y - int origin.Y)
 
             let rotateCoords origin angle x y  =
-                let tX, tY = translateToOrigin x y
+                let tX, tY = translateToOrigin origin x y
                 //printfn "tx: %i ty: %i" tX tY
                 let newX, newY = rotateCoords angle tX tY
                 //printfn "newX: %f newY: %f" newX newY
-                translateCoords origin (newX |> round) (newY |> round)
+                let f = round //if r.NextDouble() > 5. then int else round
+                let xx, yy = translateCoords origin (newX |> f) (newY |> f)
+                //printfn "xx: %i yy: %i" xx yy   
+
+                xx,yy
 
             let rotatePixels pixels rotateOrigin =
 
                 pixels 
                 |> filterPixels (fun x y -> pixels.[x,y]) 
+                |> Array.ofSeq
+                // |> Util.tee (fun ps -> 
+                //     Console.SetCursorPosition(0, 50)
+                //     ps |> Seq.length |> printfn "ps count: %i")
                 |> Seq.iter (fun (x, y) -> 
                     pixels.[x,y] <- false
                     let finalX, finalY = rotateCoords rotateOrigin angle x y 
-                    setPixel finalX finalY
+                    setPixel finalX finalY true
                 )
 
             let fadePixels pixels =
@@ -161,8 +193,26 @@ module Animation
                 |> Seq.iter (fun (x, y) -> 
                     //pixels.[x,y] <- false
                     let finalX, finalY = x + 1, y + 1
-                    setPixel finalX finalY
+                    setPixel finalX finalY true
                 )
+
+            let drawLineSpectrum samples =
+
+                let topFrom = pixel 0 (int origin.Y - 1)
+                let topTo = pixel (int canvas.Width - 1) (int origin.Y - 1)
+                let bottomFrom = pixel 0 (int origin.Y + 1)
+                let bottomTo = pixel (int canvas.Width - 1) (int origin.Y + 1)
+                let midFrom = pixel 0 (int origin.Y - 1)
+                let midTo = pixel (int canvas.Width - 1) (int origin.Y - 1)
+
+                Array.concat [| 
+                    line topFrom topTo
+                    line bottomFrom bottomTo
+                |]
+                |> Array.iter (fun p -> setPixel (int p.X) (int p.Y) true)
+
+                line midFrom midTo
+                |> Array.iter (fun p -> setPixel (int p.X) (int p.Y) false)
 
             let stateAggregator oldData newData =
                 { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
@@ -173,35 +223,38 @@ module Animation
 
                 let feedbackAnimator frameState = 
 
+                    rotatePixels pixels origin
+                    //fadePixels pixels
+
                     let rec processBlock animationState = 
 
                         let (bytes, nextBytes) = Util.chunkBytes blockSizeBytes animationState.SampleBytes
                         let samples = WavAudio.bytesToSamples sampleInfo bytes
 
-                        let x, y = rotateCoords origin (Math.PI / 180.) (int rotateOrigin.X) (int rotateOrigin.Y)
-                        let r = pixel x y
-
-                        rotatePixels pixels r
+                        rotatePixels pixels animationState.RotateOrigin
                         
-                        pixelsToCanvas pixels canvas
+                        samples |> drawLineSpectrum 
+                        pixelsToCanvas pixels canvas 
                         |> ConViz.updateConsole convas
+
+                        dumpPixels pixels |> ignore
 
                         let userState' = { 
                             animationState with 
                                 SampleBytes = nextBytes
+                                RotateOrigin = rotateCoords origin (Math.PI / 180.) (int animationState.RotateOrigin.X) (int animationState.RotateOrigin.Y) |> Drawille.pixelFromCoords
                         }
 
                         match nextBytes with
                         | [||] -> userState'
                         | _ -> processBlock userState'
 
-                    rotatePixels pixels origin
-                    fadePixels pixels
 
                     processBlock frameState.UserState
 
                 let initialUserState = {
                     SampleBytes = Array.zeroCreate 0
+                    RotateOrigin = rotateOrigin
                 }
 
                 Vizualizer(feedbackAnimator, stateAggregator, initialUserState)

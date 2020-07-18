@@ -11,6 +11,10 @@
         items |> Seq.iter f
         items
 
+    let tee f x =
+        f x
+        x
+
     let rec furthestFromZero furthest list =
         match list with
         | head :: tail -> 
