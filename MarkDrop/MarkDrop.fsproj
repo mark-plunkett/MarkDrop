@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
@@ -7,6 +7,9 @@
     <Tailcalls>true</Tailcalls>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="Fsx\FeedbackTests.fsx" />
+    <None Include="Fsx\Tests.fsx" />
+    <None Include="Fsx\SineTests.fsx" />
     <Compile Include="Util.fs" />
     <Compile Include="Converters.fs" />
     <Compile Include="FFFT.fs" />
@@ -17,10 +20,6 @@
     <Compile Include="WaveformViz.fs" />
     <Compile Include="Animation.fs" />
     <Compile Include="Program.fs" />
-    <None Include="FeedbackTests.fsx" />
-    <None Include="Tests.fsx" />
-    <None Include="SineTests.fsx" />
-    <None Include="StreamTests.fsx" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FParsec" Version="1.1.1" />

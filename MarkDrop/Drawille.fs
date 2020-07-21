@@ -115,10 +115,10 @@
         modify pixel canvas (|||)
 
     let unset pixel canvas =
-        modify pixel canvas (fun existing next ->  (existing &&& 0))
+        modify pixel canvas (fun existing next -> (existing &&& ~~~next))
 
     let toggle pixel canvas =
-        modify pixel canvas (fun existing next ->  (~~~ existing &&& next))
+        modify pixel canvas (fun existing next -> (~~~ existing &&& next))
 
     let rec draw pixels canvas =
         match pixels with
