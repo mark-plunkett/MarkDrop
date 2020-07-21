@@ -1,6 +1,8 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Timers;
 
 namespace ConsoleBuffer
 {
@@ -19,8 +21,8 @@ namespace ConsoleBuffer
         static extern bool SetConsoleActiveScreenBuffer(IntPtr handle);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool WriteConsoleOutput(
-            SafeFileHandle hConsoleOutput,
+        private static extern bool WriteConsoleOutputW(
+            IntPtr hConsoleOutput,
             CharInfo[] lpBuffer,
             Coord dwBufferSize,
             Coord dwBufferCoord,
@@ -39,18 +41,12 @@ namespace ConsoleBuffer
             }
         };
 
-        [StructLayout(LayoutKind.Explicit)]
-        public struct CharUnion
-        {
-            [FieldOffset(0)] public char UnicodeChar;
-            [FieldOffset(0)] public byte AsciiChar;
-        }
-
-        [StructLayout(LayoutKind.Explicit)]
+        [StructLayout(LayoutKind.Explicit, CharSet = CharSet.Unicode)]
         public struct CharInfo
         {
-            [FieldOffset(0)] public CharUnion Char;
-            [FieldOffset(2)] public short Attributes;
+            [FieldOffset(0)] public char UnicodeChar;
+            [FieldOffset(0)] public char AsciiChar;
+            [FieldOffset(2)] public UInt16 Attributes;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -70,28 +66,57 @@ namespace ConsoleBuffer
 
         public const uint CONSOLE_TEXTMODE_BUFFER = 1;
 
-        private static int w = 50;
-        private static int h = 50;
-        private static char[,] chars = new char[w,h];
+        private static short w = 10;
+        private static short h = 20;
+        private static Coord bufferSize = new Coord(w, h);
+        private static Coord topLeft = new Coord(0, 0);
+        private static SmallRect writeRegion = new SmallRect
+        {
+            Top = 0,
+            Left = 0,
+            Bottom = (short)(h - 1),
+            Right = (short)(w - 1)
+        };
+        private static CharInfo[] chars = new CharInfo[w * h];
+
+        static IntPtr handle;
+        static ushort attributes = 7;
 
         static void Main(string[] args)
         {
-            var handle = CreateConsoleScreenBuffer(
-                GENERIC_READ | GENERIC_WRITE,
-               FILE_SHARE_READ | FILE_SHARE_WRITE,
-               IntPtr.Zero,
-               CONSOLE_TEXTMODE_BUFFER,
-               IntPtr.Zero);
+            //InitialiseChars();
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-            for (int x = 0; x < w; x++)
+            handle = CreateConsoleScreenBuffer(
+                GENERIC_READ | GENERIC_WRITE,
+                0,
+                IntPtr.Zero,
+                CONSOLE_TEXTMODE_BUFFER,
+                IntPtr.Zero);
+
+            SetConsoleActiveScreenBuffer(handle);
+
+            while (true)
             {
-                for (int y = 0; y < h; y++)
-                {
-                    chars[x, y] = 'a';
-                }
+                WriteChars();
+                //Thread.Sleep(500);
+                Console.ReadKey();
             }
 
-            ConsoleApi
+            int t = 0;
+            //Marshal.FreeHGlobal(flattened);
+        }
+
+        private static void WriteChars()
+        {
+            for (short i = 0; i < w * h; i++)
+            {
+                chars[i] = new CharInfo { UnicodeChar = (char)0x28FF, Attributes = 7 };
+            }
+
+            WriteConsoleOutputW(handle, chars, bufferSize, topLeft, ref writeRegion);
+
+            attributes++;
         }
     }
 }
