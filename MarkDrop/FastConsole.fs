@@ -67,7 +67,7 @@ module FastConsole
 
         let whiteTextBlackBackground = 7
         let chars = Array.init (int width * int height) (fun i -> 
-            let mutable char = new Internal.CharInfo()
+            let mutable char = Internal.CharInfo()
             char.UnicodeChar <- int16 0
             char.Attributes <- int16 whiteTextBlackBackground
             char
@@ -78,11 +78,11 @@ module FastConsole
 
         do Internal.SetConsoleActiveScreenBuffer(consoleHandle) |> ignore
 
-        member __.WriteData (charArray: char[,]) = 
+        member __.WriteChars (charArray: int16[,]) = 
             
             for x = 0 to Array2D.length1 charArray - 1 do
                 for y = 0 to Array2D.length2 charArray - 1 do
                     let index = x + (y * Array2D.length1 charArray)
-                    chars.[index].UnicodeChar <- int16 charArray.[x,y] 
+                    chars.[index].UnicodeChar <- charArray.[x,y] 
 
-            Internal.WriteConsoleOutputW(consoleHandle, chars, bufferSize, topLeft, &writeRegion)
+            Internal.WriteConsoleOutputW(consoleHandle, chars, bufferSize, topLeft, &writeRegion) |> ignore

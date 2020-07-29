@@ -33,4 +33,4 @@ while true do
         //chars.[x,y] <- alphabet.[index] |> char
     )
 
-    fastConsole.WriteData(chars) |> ignore
+    fastConsole.WriteChars(chars) |> ignore

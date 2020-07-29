@@ -82,6 +82,9 @@
         // Ignore the units here for the purposes of getting the mapped braille dot
         dotMap.[(int pixel.Y % 4)].[(int pixel.X % 2)]
 
+    let brailleToChar brailleChar =
+        brailleCharOffset + brailleChar
+
     let brailleToString i =
         char (brailleCharOffset + i) |> string
 

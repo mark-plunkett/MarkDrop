@@ -36,7 +36,11 @@ module Animation
         let buffer = Array.zeroCreate numBytes
         let rec animateBytes totalBytesProcessed = async {
 
-            let msToWait = viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) |> calculateLatency totalBytesProcessed |> max 0. |> int
+            let msToWait = 
+                viz.PostAndReply (fun replyChannel ->  Reply(replyChannel)) 
+                |> calculateLatency totalBytesProcessed 
+                |> max 0. 
+                |> int
             do! Async.Sleep msToWait
 
             match stream.Read(buffer, 0, numBytes) with
@@ -64,6 +68,7 @@ module Animation
 
             let convas = { ConViz.initialise() with ZeroOrigin = pixel 0 0 }
             let canvas = Drawille.createCharCanvas convas.CharWidth convas.CharHeight
+            let fastConsole = FastConsole.FastConsole(convas.CharWidth, convas.CharHeight)
             let origin = Drawille.pixel (int canvas.Width / 2) (int canvas.Height / 2)
             let p = 9
             let blockSize = pown 2 p
@@ -232,8 +237,10 @@ module Animation
                         animatePixels pixels animationState.RotateOrigin
                         
                         samples |> drawLineSpectrum 
-                        pixelsToCanvas pixels canvas (frameState.ElapsedMs |> int)
-                        |> ConViz.updateConsole convas
+                        pixelsToCanvas pixels canvas (frameState.ElapsedMs |> int) |> ignore
+                        //|> ConViz.updateConsole convas
+                        let chars = canvas.Grid |> Array2D.map (brailleToChar >> int16)
+                        fastConsole.WriteChars(chars)
 
                         //dumpPixels pixels |> ignore
 
