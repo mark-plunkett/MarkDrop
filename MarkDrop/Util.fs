@@ -47,7 +47,6 @@
     let normalize factor (vs: int[]) =
         vs |> Array.map (fun i -> float i / factor)
 
-
     let logScale maxValue value =
         let logF = System.Math.Log
         let divisor = logF <| (float maxValue)

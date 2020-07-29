@@ -11,6 +11,7 @@
     <None Include="Fsx/Tests.fsx" />
     <None Include="Fsx/SineTests.fsx" />
     <None Include="Fsx\FastConsoleTests.fsx" />
+    <None Include="Fsx\DrawilleTests.fsx" />
     <Compile Include="Util.fs" />
     <Compile Include="Converters.fs" />
     <Compile Include="FFFT.fs" />

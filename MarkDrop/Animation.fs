@@ -213,9 +213,8 @@ module Animation
                 |]
                 |> Array.iter (fun p -> setPixel (int p.X) (int p.Y) true)
 
-                // let l = line midFrom midTo
-                // l
-                // |> Array.iter (fun p -> setPixel (int p.X) (int p.Y) false)
+                line midFrom midTo
+                |> Array.iter (fun p -> setPixel (int p.X) (int p.Y) false)
 
             let stateAggregator oldData newData =
                 { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
@@ -238,11 +237,8 @@ module Animation
                         
                         samples |> drawLineSpectrum 
                         pixelsToCanvas pixels canvas (frameState.ElapsedMs |> int) |> ignore
-                        //|> ConViz.updateConsole convas
                         let chars = canvas.Grid |> Array2D.map (brailleToChar >> int16)
                         fastConsole.WriteChars(chars)
-
-                        //dumpPixels pixels |> ignore
 
                         let userState' = { 
                             animationState with 
