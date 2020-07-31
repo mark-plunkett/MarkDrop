@@ -81,12 +81,12 @@ let main argv =
     // LONG FILE ~1GB
     // let fileName = @"D:\Google Drive\Music\Mixes\Jungle\Gold Dubs Revamped Classics Mix 2014.wav"
 
-    let fileName = @"C:\Dev\MarkDrop\Audio\imager-flower.wav"
+    //let fileName = @"C:\Dev\MarkDrop\Audio\imager-flower.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\imager-very-phased.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\imager-left-45.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\test-phased.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\sine-sweep.wav"
-    //let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
+    let fileName = @"D:\Google Drive\Music\flac\Prodigy\The Prodigy - Music For The Jilted Generation (1995) WAV\02. Break & Enter.wav"
     //let fileName = @"D:\Google Drive\Music\flac\FC Kahuna\Machine Says Yes\(1) Hayling.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\JANICE - b - 1.wav"
     //let fileName = @"C:\Dev\MarkDrop\Audio\silence.wav"

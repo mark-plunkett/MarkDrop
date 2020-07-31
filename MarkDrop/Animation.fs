@@ -57,6 +57,34 @@ module Animation
         |> Async.RunSynchronously
         |> ignore
 
+    module AnimationUtil =
+
+        let scaleX max factor value = 
+            value
+            |> Util.logScale max
+            |> WaveformViz.scale factor 
+            |> float
+
+        let translateY amount value = 
+            amount - value
+
+        let applySlope xPos slopeScale value =
+            value * xPos * slopeScale
+
+        let scaleY factor slopeScale xPos value = 
+            value * factor
+            |> applySlope xPos slopeScale
+
+        let aggregateSamples (samples: int[,]) =
+            // TODO: this is only using left channel atm
+            samples.[0,*]
+
+        let smooth previousSamples samples = 
+            previousSamples
+            |> Array.append [|samples|]
+            |> Array.transpose
+            |> Array.map Array.average
+
     module Feedback =
 
         type AnimationState = {
@@ -72,6 +100,14 @@ module Animation
             let origin = Drawille.pixel (int canvas.Width / 2) (int canvas.Height / 2)
             let p = 9
             let blockSize = pown 2 p
+            let fftPower = 11
+            let fftBlockSize = pown 2 fftPower
+            let fftOutputRatio = 0.5 // We discard half the FFT output
+            let fftPaddedSize = pown 2 13
+            let fftOutputSize = fftOutputRatio * float fftPaddedSize
+            let sampleScalingFactor = 0.5 * pown 2. 16
+            let slope = 4.
+            let slopeScale = slope / float canvas.Width            
 
             let r = Random()
 
@@ -115,35 +151,17 @@ module Animation
                             | x when x > 800 -> Drawille.set
                             | _ -> Drawille.toggle
                         f (jitterPixel x y) canvas |> ignore
-                        //Drawille.set (jitterPixel x y) canvas |> ignore
                     else
                         Drawille.unset (pixel x y) canvas |> ignore
                 )
                 canvas
 
-            let setPixel x y v =
+            let setPixel x y v pixels =
                 let xInRange = x >= 0 && x < Array2D.length1 pixels
                 let yInRange = y >= 0 && y < Array2D.length2 pixels
                 if xInRange && yInRange then
                     pixels.[x,y] <- v
 
-            let dumpPixels ps =
-                
-                Console.SetCursorPosition(0,0)
-                for y = 0 to Array2D.length2 ps - 1 do
-                    for x = 0 to Array2D.length1 ps - 1 do
-                        let c = 
-                            if x = int origin.X && y = int origin.Y then
-                                "c"
-                            else
-                                match ps.[x,y] with
-                                | true -> "x"
-                                | false -> "-"
-
-                        printf "%s" c
-
-                    printfn ""
-            
             let rotate angle x y =
                 let x = float x * sin angle |> int
                 let y = float y * cos angle |> int
@@ -183,7 +201,7 @@ module Animation
                 |> Seq.iter (fun (x, y) -> 
                     pixels.[x,y] <- false
                     let finalX, finalY = rotateCoords rotateOrigin angle x y 
-                    setPixel finalX finalY true
+                    setPixel finalX finalY true pixels
                 )
 
             let fadePixels pixels =
@@ -193,29 +211,42 @@ module Animation
                 |> Seq.iter (fun (x, y) -> 
                     pixels.[x,y] <- false
                     if r.NextDouble() > 0.2 then
-                        setPixel x y true
+                        setPixel x y true pixels
                 )
 
-            let drawLineSpectrum samples =
+            let scaleX value = 
+                value
+                |> Util.logScale fftOutputSize
+                |> WaveformViz.scale (float canvas.Width / fftOutputSize) 
+                |> float
 
-                let topFrom = pixel 0 (int origin.Y - 1)
-                let topTo = pixel (int canvas.Width - 1) (int origin.Y - 1)
-                let bottomFrom = pixel 0 (int origin.Y + 1)
-                let bottomTo = pixel (int canvas.Width - 1) (int origin.Y + 1)
-                let midFrom = pixel 0 (int origin.Y)
-                let midTo = pixel (int canvas.Width - 1) (int origin.Y)
+            let translateY value = 
+                (int canvas.Height / 2)  - value
 
-                let t = line topFrom topTo
-                let b = line bottomFrom bottomTo
+            let applySlope xPos value =
+                value * xPos * slopeScale
 
-                Array.concat [| 
-                    t;b
-                |]
-                |> Array.iter (fun p -> setPixel (int p.X) (int p.Y) true)
+            let scaleY xPos value = 
+                applySlope xPos value
 
-                line midFrom midTo
-                |> Array.iter (fun p -> setPixel (int p.X) (int p.Y) false)
+            let aggregateSamples (samples: int[,]) =
+                // TODO: this is only using left channel atm
+                samples.[0,*]
 
+            let drawSpectrum samples = 
+                samples
+                |> FFFT.fftFloatToComplex
+                //|> Array.map (fun c -> c.Real)
+                |> Array.map (fun c -> (Math.Sign(c.Real) |> float) * (c.Magnitude))
+                |> Array.take (int fftOutputSize)
+                |> Array.skip 1
+                |> Array.mapi (fun i v -> 
+                    let i' = i - 1
+                    let xPos = i' |> float |> scaleX |> int
+                    let yPos = v |> scaleY <| float xPos |> int |> translateY
+                    Drawille.pixel xPos yPos)
+
+            
             let stateAggregator oldData newData =
                 { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
 
@@ -235,8 +266,31 @@ module Animation
 
                         animatePixels pixels animationState.RotateOrigin
                         
-                        samples |> drawLineSpectrum 
                         pixelsToCanvas pixels canvas (frameState.ElapsedMs |> int) |> ignore
+
+                        let spectrumPixels =
+                            samples 
+                            |> aggregateSamples
+                            |> Util.pad fftPaddedSize
+                            |> Util.normalize sampleScalingFactor
+                            |> drawSpectrum
+                        
+                        spectrumPixels 
+                        |> Array.iter (fun p -> 
+                            setPixel (int p.X) (int p.Y-1) true pixels
+                            setPixel (int p.X) (int p.Y) false pixels
+                            setPixel (int p.X) (int p.Y+1) true pixels
+                            )
+
+                        Drawille.erasePoints spectrumPixels canvas |> ignore
+
+                        spectrumPixels 
+                        |> Array.collect (fun p -> 
+                            [| pixel (int p.X) (int p.Y - 1);pixel (int p.X) (int p.Y + 1) |]
+                        )
+                        |> Util.flip Drawille.drawPoints canvas
+                        |> ignore
+
                         let chars = canvas.Grid |> Array2D.map (brailleToChar >> int16)
                         fastConsole.WriteChars(chars)
 
@@ -392,29 +446,12 @@ module Animation
             let smoothing = 3
             let skip = 2
 
-            let scaleX value = 
-                value
-                |> Util.logScale fftOutputSize
-                |> WaveformViz.scale (float canvas.Width / fftOutputSize) 
-                |> float
-
-            let translateY value = 
-                int canvas.Height - 1 - value
-
-            let applySlope xPos value =
-                value * xPos * slopeScale
-
-            let scaleY xPos value = 
-                value * yScalingFactor
-                |> applySlope xPos
-
+            let scaleX = AnimationUtil.scaleX fftOutputSize (float canvas.Width / fftOutputSize)
+            let scaleY = AnimationUtil.scaleY yScalingFactor slopeScale
+            let translateY = AnimationUtil.translateY (int canvas.Height - 1)
             let stateAggregator oldData newData =
                 { oldData with SampleBytes = Array.append oldData.SampleBytes newData }
-
-            let aggregateSamples (samples: int[,]) =
-                // TODO: this is only using left channel atm
-                samples.[0,*]
-
+            
             let fftAnimator canvas frameState = 
 
                 let drawSpectrum samples = 
@@ -425,16 +462,10 @@ module Animation
                     |> Array.mapi (fun i v -> 
                         let i' = i - skip
                         let xPos = i' |> float |> scaleX |> int
-                        let yPos = v |> abs |> scaleY <| float xPos |> int |> translateY
+                        let yPos = v |> abs |> scaleY (float xPos) |> int |> translateY
                         Drawille.pixel xPos yPos)
                     |> Util.flip Drawille.drawTurtle (canvas |> Drawille.clear)
                     |> ConViz.updateConsole convas
-
-                let smooth previousSamples samples = 
-                    previousSamples
-                    |> Array.append [|samples|]
-                    |> Array.transpose
-                    |> Array.map Array.average
 
                 let rec processBlock animationState =
 
@@ -443,12 +474,12 @@ module Animation
                     let (bytes, nextBytes) = Util.chunkBytes fftBlockSizeBytes animationState.SampleBytes
                     let samples = 
                         WavAudio.bytesToSamples sampleInfo bytes
-                        |> aggregateSamples
+                        |> AnimationUtil.aggregateSamples
                         |> Util.pad fftPaddedSize
                         |> Util.normalize sampleScalingFactor
 
                     samples
-                    |> smooth animationState.PreviousSamples
+                    |> AnimationUtil.smooth animationState.PreviousSamples
                     |> drawSpectrum 
                     |> ignore
 

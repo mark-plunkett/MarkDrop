@@ -101,10 +101,15 @@ module FFFT
     t
 
   let magnitude (c: Complex) =
-    sqrt(c.Real**2. + c.Imaginary**2.)
+    c.Magnitude
 
   let fftFloatToFloat vs =
     vs
     |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
     |> fft
     |> Array.map magnitude
+
+  let fftFloatToComplex vs =
+    vs
+    |> Array.map (fun s -> System.Numerics.Complex(s, 0.))
+    |> fft
